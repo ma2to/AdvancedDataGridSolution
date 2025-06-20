@@ -1,0 +1,168 @@
+﻿<!-- MainWindow.xaml - OPRAVENÝ -->
+<Window x:Class="AdvancedDataGrid.Demo.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:AdvancedDataGrid.Demo"
+        xmlns:adg="clr-namespace:Components.AdvancedDataGrid.Views;assembly=Components.AdvancedDataGrid"
+        mc:Ignorable="d"
+        Title="AdvancedDataGrid Demo" Height="800" Width="1200"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#2C3E50" Padding="16,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" 
+                           Text="🔥 AdvancedDataGrid Demo" 
+                           FontSize="18" 
+                           FontWeight="Bold" 
+                           Foreground="White" 
+                           VerticalAlignment="Center"/>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button x:Name="LoadSampleDataButton"
+                            Content="📊 Load Sample Data"
+                            Click="LoadSampleDataButton_Click"
+                            Padding="12,6"
+                            Margin="8,0"
+                            Background="#3498DB"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Cursor="Hand"/>
+
+                    <Button x:Name="RemoveInvalidRowsButton"
+                            Content="🗑️ Remove Invalid Rows"
+                            Click="RemoveInvalidRowsButton_Click"
+                            Padding="12,6"
+                            Margin="8,0"
+                            Background="#E74C3C"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Cursor="Hand"/>
+
+                    <Button x:Name="ExportDataButton"
+                            Content="💾 Export Data"
+                            Click="ExportDataButton_Click"
+                            Padding="12,6"
+                            Margin="8,0"
+                            Background="#E67E22"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Cursor="Hand"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- MAIN COMPONENT -->
+        <adg:AdvancedDataGridView x:Name="AdvancedDataGrid" 
+                                  Grid.Row="1"
+                                  Margin="8"
+                                  ErrorOccurred="AdvancedDataGrid_ErrorOccurred"/>
+
+        <!-- Component Action Bar - NOVÝ -->
+        <Border Grid.Row="2" 
+                Background="#F8F9FA" 
+                Padding="8,4"
+                BorderBrush="#DEE2E6"
+                BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Validation Status -->
+                <TextBlock Grid.Column="0"
+                           x:Name="ValidationStatusTextBlock"
+                           Text="Pripravené"
+                           FontSize="11"
+                           Foreground="#6C757D"
+                           VerticalAlignment="Center"/>
+
+                <!-- Action Buttons -->
+                <Button Grid.Column="1"
+                        x:Name="ValidateAllButton"
+                        Content="🔍 Validovať všetko"
+                        Click="ValidateAllButton_Click"
+                        Padding="8,4"
+                        Margin="4,0"
+                        Background="#28A745"
+                        Foreground="White"
+                        BorderThickness="0"
+                        ToolTip="Spustiť validáciu všetkých riadkov"/>
+
+                <Button Grid.Column="2"
+                        x:Name="RemoveEmptyRowsButton"
+                        Content="🗑️ Vymazať prázdne"
+                        Click="RemoveEmptyRowsButton_Click"
+                        Padding="8,4"
+                        Margin="4,0"
+                        Background="#6C757D"
+                        Foreground="White"
+                        BorderThickness="0"
+                        ToolTip="Odstrániť prázdne riadky"/>
+
+                <Button Grid.Column="3"
+                        x:Name="CopyDataButton"
+                        Content="📋 Kopírovať"
+                        Click="CopyDataButton_Click"
+                        Padding="8,4"
+                        Margin="4,0"
+                        Background="#17A2B8"
+                        Foreground="White"
+                        BorderThickness="0"
+                        ToolTip="Kopírovať označené bunky (Ctrl+C)"/>
+
+                <Button Grid.Column="4"
+                        x:Name="ClearAllDataButton"
+                        Content="🧹 Vymazať všetko"
+                        Click="ClearAllDataButton_Click"
+                        Padding="8,4"
+                        Margin="4,0"
+                        Background="#DC3545"
+                        Foreground="White"
+                        BorderThickness="0"
+                        ToolTip="Vymazať všetky dáta"/>
+            </Grid>
+        </Border>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="3" Background="#34495E" Padding="12,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="StatusTextBlock"
+                           Grid.Column="0"
+                           Text="Ready - Load sample data to begin"
+                           Foreground="#BDC3C7"
+                           VerticalAlignment="Center"/>
+
+                <TextBlock Grid.Column="1"
+                           Text="💡 F2 = Mirror Editor | ESC = cancel | Enter = commit | Del = clear cell | Ctrl+C = copy | Ctrl+V = paste"
+                           Foreground="#95A5A6"
+                           FontSize="10"
+                           VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

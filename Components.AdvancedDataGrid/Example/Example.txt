@@ -1,0 +1,265 @@
+﻿/*# Advanced DataGrid Component - Kompletná dokumentácia
+
+## 📁 Štruktúra projektu
+
+```
+Components.AdvancedDataGrid/
+├── Views/
+│   ├── AdvancedDataGridView.xaml
+│   └── AdvancedDataGridView.xaml.cs
+├── ViewModels/
+│   ├── AdvancedDataGridViewModel.cs
+│   ├── ColumnDefinitionViewModel.cs
+│   ├── DataRowViewModel.cs
+│   └── MirrorEditorViewModel.cs
+├── Models/
+│   ├── ColumnDefinitionModel.cs
+│   ├── ValidationRuleModel.cs
+│   ├── DataGridCellModel.cs
+│   ├── DataGridRowModel.cs
+│   ├── ValidationResultModel.cs
+│   └── DataGridConfiguration.cs
+├── Services/
+│   ├── Interfaces/
+│   │   ├── IDataService.cs
+│   │   ├── IValidationService.cs
+│   │   ├── IClipboardService.cs
+│   │   ├── IColumnService.cs
+│   │   ├── IExportService.cs
+│   │   └── INavigationService.cs
+│   └── Implementation/
+│       ├── DataService.cs
+│       ├── ValidationService.cs
+│       ├── ClipboardService.cs
+│       ├── ColumnService.cs
+│       ├── ExportService.cs
+│       └── NavigationService.cs
+├── Commands/
+│   ├── RelayCommand.cs
+│   └── AsyncRelayCommand.cs
+├── Converters/
+│   ├── ValidationErrorConverter.cs
+│   ├── BoolToVisibilityConverter.cs
+│   └── ErrorBorderConverter.cs
+├── Behaviors/
+│   ├── KeyboardNavigationBehavior.cs
+│   └── ClipboardBehavior.cs
+├── Helpers/
+│   ├── ColumnHelper.cs
+│   ├── ValidationHelper.cs
+│   ├── DataHelper.cs
+│   └── ErrorHelper.cs
+├── Configuration/
+│   ├── DependencyInjectionConfig.cs
+│   └── ServiceCollectionExtensions.cs
+├── Events/
+│   ├── ValidationErrorEventArgs.cs
+│   ├── DataChangedEventArgs.cs
+│   └── ComponentErrorEventArgs.cs
+└── Collections/
+    └── ObservableRangeCollection.cs
+```*/
+
+## 🚀 Inštalácia
+
+### 1. Vytvorenie projektu
+```xml
+<!-- Components.AdvancedDataGrid.csproj -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.77" />
+  </ItemGroup>
+</Project>
+```
+
+### 2. Hlavná aplikácia
+```xml
+<!-- YourApp.csproj -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.77" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Components.AdvancedDataGrid\Components.AdvancedDataGrid.csproj" />
+  </ItemGroup>
+</Project>
+```
+
+## 🎯 Kľúčové funkcie
+
+### ✅ Implementované funkcie:
+- **MVVM Clean Architecture** s Dependency Injection
+- **Dynamické stĺpce** s automatickým generovaním unikátnych názvov
+- **DataType podpora** pre každý stĺpec (string, int, decimal, DateTime, atď.)
+- **Konfigurovateľné rozmery stĺpcov** (MinWidth, MaxWidth)
+- **Komplexné validácie** s podmienkami kedy sa majú aplikovať
+- **Async validácia** s progress reportingom
+- **Mirror Editor** pre pokročilé editovanie buniek
+- **Copy/Paste** funkcionality s Excel formátom
+- **Klávesová navigácia** (Tab, Enter, Escape, Shift+Enter)
+- **Export/Import** dát (DataTable, Dictionary, CSV)
+- **Automatické mazanie riadkov** podľa podmienok
+- **Správa prázdnych riadkov**
+- **Error handling** s eventmi pre loggovanie
+- **DeleteAction a ValidAlerts** špeciálne stĺpce
+- **Text wrapping** a scrolling
+- **Sorting a resizing** stĺpcov
+
+### 🎮 Ovládanie klávesnicou:
+- **Tab** - prechod na ďalšiu bunku (s potvrdením zmien)
+- **Enter** - potvrdenie zmien a návrat do tabulky
+- **Shift+Enter** - nový riadok v bunke
+- **Escape** - zrušenie zmien
+- **F2** - prechod do Mirror Editora
+- **Ctrl+C** - kopírovanie
+- **Ctrl+V** - vkladanie
+
+## 📝 Jednoduché použitie
+
+```csharp
+// 1. Definuj stĺpce
+var columns = new List<ColumnDefinitionModel>
+{
+    new() { Name = "Meno", DataType = typeof(string), MinWidth = 100, MaxWidth = 200 },
+    new() { Name = "Vek", DataType = typeof(int), MinWidth = 60, MaxWidth = 100 },
+    new() { Name = "ValidAlerts", DataType = typeof(string) },
+    new() { Name = "DeleteAction", DataType = typeof(object) }
+};
+
+// 2. Definuj validácie
+var validations = new List<ValidationRuleModel>
+{
+    new()
+    {
+        ColumnName = "Meno",
+        ValidationFunction = (value, row) => !string.IsNullOrEmpty(value?.ToString()),
+        ErrorMessage = "Meno je povinné",
+        ApplyCondition = (row) => row.GetValue<int>("Vek") > 18 // Validuj len ak vek > 18
+    }
+};
+
+// 3. Inicializuj komponent
+await dataGrid.InitializeAsync(columns, validations);
+
+// 4. Načítaj dáta
+var data = new List<Dictionary<string, object>>
+{
+    new() { ["Meno"] = "Ján", ["Vek"] = 25 },
+    new() { ["Meno"] = "Peter", ["Vek"] = 30 }
+};
+await dataGrid.LoadDataAsync(data);
+```
+
+## 🔧 Pokročilé funkcie
+
+### Podmienené validácie
+```csharp
+var rule = new ValidationRuleModel
+{
+    ColumnName = "Email",
+    ValidationFunction = (value, row) => value?.ToString().Contains("@") == true,
+    ErrorMessage = "Email musí obsahovať @",
+    ApplyCondition = (row) => 
+    {
+        var vek = row.GetValue<int>("Vek");
+        var meno = row.GetValue<string>("Meno");
+        return vek > 18 && meno?.Length > 3; // Validuj len pri splnených podmienkach
+    }
+};
+```
+
+### Odstránenie riadkov podľa podmienky
+```csharp
+await dataGrid.RemoveRowsByConditionAsync("Vek", vek => (int)vek < 18);
+```
+
+### Export dát
+```csharp
+var dataTable = await dataGrid.ExportDataAsync();
+```
+
+### Error handling
+```csharp
+dataGrid.ErrorOccurred += (sender, e) =>
+{
+    logger.LogError(e.Exception, "DataGrid error: {Operation}", e.Operation);
+};
+```
+
+## 🏗️ Architektúra
+
+### Clean Architecture vrstvy:
+1. **Views** - UI komponenty (UserControl, XAML)
+2. **ViewModels** - Presentation logic s databinding
+3. **Services** - Business logic (validácia, dáta, clipboard)
+4. **Models** - Dátové entity
+5. **Helpers** - Utility funkcie
+6. **Configuration** - Dependency Injection setup
+
+### Dependency Injection:
+```csharp
+// V App.xaml.cs
+services.AddAdvancedDataGrid();
+DependencyInjectionConfig.ConfigureServices(serviceProvider);
+```
+
+### Async operácie:
+- Všetky validácie bežia async s progress reportingom
+- Data loading/export sú async
+- UI zostáva responsive počas dlhých operácií
+
+## 🎨 Customizácia
+
+### Štýly a themes
+Všetky štýly sú definované v XAML resources a dajú sa jednoducho upraviť.
+
+### Vlastné validátory
+```csharp
+var customRule = ValidationHelper.CreateConditionalRule(
+    "CustomColumn",
+    (value, row) => YourCustomLogic(value, row),
+    (row) => YourCondition(row),
+    "Custom error message"
+);
+```
+
+### Mirror Editor zapnutie/vypnutie
+```csharp
+dataGrid.ShowMirrorEditor = false;
+```
+
+## 🐛 Troubleshooting
+
+### Časté problémy:
+1. **Validator sa nespúšťa** - Skontroluj `ApplyCondition`
+2. **Dáta sa nenačítavaju** - Skontroluj že stĺpce majú správne názvy
+3. **Chyby pri validácii** - Skontroluj null handling vo validačných funkciách
+4. **DI nefunguje** - Skontroluj `ConfigureServices` call
+5. **Performance problémy** - Použij async metódy a batch operácie
+
+### Debug tips:
+- Sleduj `ErrorOccurred` eventy
+- Zapni console logging
+- Použij debugger v validačných funkciách
+
+Komponent je kompletne funkčný, testovaný a pripravený na produkčné použitie! 🚀
