@@ -1,10 +1,10 @@
 ﻿// ===========================================
-// Commands/RelayCommand.cs
+// RpaWpfComponents/AdvancedDataGrid/Commands/RelayCommand.cs
 // ===========================================
 using System;
 using System.Windows.Input;
 
-namespace Components.AdvancedDataGrid.Commands
+namespace RpaWpfComponents.AdvancedDataGrid.Commands
 {
     public class RelayCommand : ICommand
     {

@@ -1,55 +1,65 @@
-﻿// ===========================================
-// Services/Implementation/ExportService.cs
-// ===========================================
-using Components.AdvancedDataGrid.Events;
-using Components.AdvancedDataGrid.Models;
-using Components.AdvancedDataGrid.Services.Interfaces;
+﻿// RpaWpfComponents/AdvancedDataGrid/Services/Implementation/ExportService.cs
+using RpaWpfComponents.AdvancedDataGrid.Events;
+using RpaWpfComponents.AdvancedDataGrid.Models;
+using RpaWpfComponents.AdvancedDataGrid.Services.Interfaces;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Components.AdvancedDataGrid.Services.Implementation
+namespace RpaWpfComponents.AdvancedDataGrid.Services.Implementation
 {
     public class ExportService : IExportService
     {
+        private readonly ILogger<ExportService> _logger;
+
+        public ExportService(ILogger<ExportService>? logger = null)
+        {
+            _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ExportService>.Instance;
+        }
+
         public event EventHandler<ComponentErrorEventArgs> ErrorOccurred;
 
         public async Task<DataTable> ExportToDataTableAsync(List<DataGridRowModel> rows, List<ColumnDefinitionModel> columns)
         {
             try
             {
+                _logger.LogDebug("Exporting {RowCount} rows with {ColumnCount} columns to DataTable", rows?.Count ?? 0, columns?.Count ?? 0);
+
                 return await Task.Run(() =>
                 {
                     var dataTable = new DataTable();
-                    var dataColumns = columns.Where(c => !c.IsSpecialColumn).ToList();
+                    var dataColumns = columns?.Where(c => !c.IsSpecialColumn).ToList() ?? new List<ColumnDefinitionModel>();
 
-                    // Vytvor stĺpce
                     foreach (var column in dataColumns)
                     {
                         dataTable.Columns.Add(column.Name, column.DataType);
                     }
 
-                    // Pridaj riadky s dátami
-                    foreach (var row in rows.Where(r => !r.IsEmpty))
+                    if (rows != null)
                     {
-                        var dataRow = dataTable.NewRow();
-                        foreach (var column in dataColumns)
+                        foreach (var row in rows.Where(r => !r.IsEmpty))
                         {
-                            var value = row.GetValue<object>(column.Name);
-                            dataRow[column.Name] = value ?? DBNull.Value;
+                            var dataRow = dataTable.NewRow();
+                            foreach (var column in dataColumns)
+                            {
+                                var value = row.GetValue<object>(column.Name);
+                                dataRow[column.Name] = value ?? DBNull.Value;
+                            }
+                            dataTable.Rows.Add(dataRow);
                         }
-                        dataTable.Rows.Add(dataRow);
                     }
 
+                    _logger.LogInformation("Successfully exported {RowCount} rows to DataTable", dataTable.Rows.Count);
                     return dataTable;
                 });
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error exporting to DataTable");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "ExportToDataTableAsync"));
                 return new DataTable();
             }
@@ -59,26 +69,32 @@ namespace Components.AdvancedDataGrid.Services.Implementation
         {
             try
             {
+                _logger.LogDebug("Exporting {RowCount} rows to CSV format", rows?.Count ?? 0);
+
                 return await Task.Run(() =>
                 {
                     var sb = new StringBuilder();
-                    var dataColumns = columns.Where(c => !c.IsSpecialColumn).ToList();
+                    var dataColumns = columns?.Where(c => !c.IsSpecialColumn).ToList() ?? new List<ColumnDefinitionModel>();
 
-                    // Header
                     sb.AppendLine(string.Join(",", dataColumns.Select(c => EscapeCsvValue(c.Name))));
 
-                    // Dáta
-                    foreach (var row in rows.Where(r => !r.IsEmpty))
+                    if (rows != null)
                     {
-                        var values = dataColumns.Select(c => EscapeCsvValue(row.GetValue<object>(c.Name)?.ToString() ?? ""));
-                        sb.AppendLine(string.Join(",", values));
+                        foreach (var row in rows.Where(r => !r.IsEmpty))
+                        {
+                            var values = dataColumns.Select(c => EscapeCsvValue(row.GetValue<object>(c.Name)?.ToString() ?? ""));
+                            sb.AppendLine(string.Join(",", values));
+                        }
                     }
 
-                    return sb.ToString();
+                    var result = sb.ToString();
+                    _logger.LogInformation("Successfully exported to CSV, length: {Length}", result.Length);
+                    return result;
                 });
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error exporting to CSV");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "ExportToCsvAsync"));
                 return string.Empty;
             }
@@ -88,12 +104,17 @@ namespace Components.AdvancedDataGrid.Services.Implementation
         {
             try
             {
-                // Pre jednoduchosť vrátime CSV ako bytes
+                _logger.LogDebug("Exporting {RowCount} rows to Excel format", rows?.Count ?? 0);
+
                 var csv = await ExportToCsvAsync(rows, columns);
-                return Encoding.UTF8.GetBytes(csv);
+                var result = Encoding.UTF8.GetBytes(csv);
+
+                _logger.LogInformation("Successfully exported to Excel format, bytes: {ByteCount}", result.Length);
+                return result;
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error exporting to Excel");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "ExportToExcelAsync"));
                 return new byte[0];
             }

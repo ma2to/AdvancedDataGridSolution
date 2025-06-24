@@ -1,20 +1,27 @@
-﻿// Services/Implementation/NavigationService.cs - OPRAVENÝ
-using Components.AdvancedDataGrid.Events;
-using Components.AdvancedDataGrid.Models;
-using Components.AdvancedDataGrid.Services.Interfaces;
+﻿// RpaWpfComponents/AdvancedDataGrid/Services/Implementation/NavigationService.cs
+using RpaWpfComponents.AdvancedDataGrid.Events;
+using RpaWpfComponents.AdvancedDataGrid.Models;
+using RpaWpfComponents.AdvancedDataGrid.Services.Interfaces;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Components.AdvancedDataGrid.Services.Implementation
+namespace RpaWpfComponents.AdvancedDataGrid.Services.Implementation
 {
     public class NavigationService : INavigationService
     {
+        private readonly ILogger<NavigationService> _logger;
         private List<DataGridRowModel> _rows = new();
         private List<ColumnDefinitionModel> _columns = new();
         private int _currentRowIndex = -1;
         private int _currentColumnIndex = -1;
         private DataGridCellModel? _currentCell;
+
+        public NavigationService(ILogger<NavigationService>? logger = null)
+        {
+            _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<NavigationService>.Instance;
+        }
 
         public DataGridCellModel? CurrentCell
         {
@@ -24,6 +31,7 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                 if (_currentCell != value)
                 {
                     _currentCell = value;
+                    _logger.LogTrace("Current cell changed to: {ColumnName}", _currentCell?.ColumnName);
                 }
             }
         }
@@ -36,22 +44,30 @@ namespace Components.AdvancedDataGrid.Services.Implementation
 
         public void Initialize(List<DataGridRowModel> rows, List<ColumnDefinitionModel> columns)
         {
-            _rows = rows ?? throw new ArgumentNullException(nameof(rows));
-            _columns = columns ?? throw new ArgumentNullException(nameof(columns));
-
-            // Reset current position
-            _currentRowIndex = -1;
-            _currentColumnIndex = -1;
-            CurrentCell = null;
-
-            // Set initial position if data exists
-            if (_rows.Count > 0)
+            try
             {
-                var editableColumns = GetEditableColumns();
-                if (editableColumns.Count > 0)
+                _rows = rows ?? throw new ArgumentNullException(nameof(rows));
+                _columns = columns ?? throw new ArgumentNullException(nameof(columns));
+
+                _currentRowIndex = -1;
+                _currentColumnIndex = -1;
+                CurrentCell = null;
+
+                _logger.LogInformation("NavigationService initialized with {RowCount} rows and {ColumnCount} columns", _rows.Count, _columns.Count);
+
+                if (_rows.Count > 0)
                 {
-                    MoveToCell(0, 0);
+                    var editableColumns = GetEditableColumns();
+                    if (editableColumns.Count > 0)
+                    {
+                        MoveToCell(0, 0);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error initializing NavigationService");
+                throw;
             }
         }
 
@@ -66,20 +82,20 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                 var oldColumnIndex = _currentColumnIndex;
                 var oldCell = CurrentCell;
 
-                // Nájdi nasledujúci editovateľný stĺpec
                 var nextColumnIndex = _currentColumnIndex + 1;
                 var nextRowIndex = _currentRowIndex;
 
                 if (nextColumnIndex >= editableColumns.Count)
                 {
-                    // Prejdi na ďalší riadok
                     nextColumnIndex = 0;
                     nextRowIndex = _currentRowIndex + 1;
                     if (nextRowIndex >= _rows.Count)
-                        nextRowIndex = 0; // Začni od začiatku
+                        nextRowIndex = 0;
                 }
 
                 MoveToCell(nextRowIndex, nextColumnIndex);
+
+                _logger.LogDebug("Moved to next cell: [{Row},{Col}]", nextRowIndex, nextColumnIndex);
 
                 OnCellChanged(new CellNavigationEventArgs
                 {
@@ -93,6 +109,7 @@ namespace Components.AdvancedDataGrid.Services.Implementation
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error moving to next cell");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "MoveToNextCell"));
             }
         }
@@ -108,20 +125,20 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                 var oldColumnIndex = _currentColumnIndex;
                 var oldCell = CurrentCell;
 
-                // Nájdi predchádzajúci editovateľný stĺpec
                 var prevColumnIndex = _currentColumnIndex - 1;
                 var prevRowIndex = _currentRowIndex;
 
                 if (prevColumnIndex < 0)
                 {
-                    // Prejdi na predchádzajúci riadok
                     prevColumnIndex = editableColumns.Count - 1;
                     prevRowIndex = _currentRowIndex - 1;
                     if (prevRowIndex < 0)
-                        prevRowIndex = _rows.Count - 1; // Prejdi na koniec
+                        prevRowIndex = _rows.Count - 1;
                 }
 
                 MoveToCell(prevRowIndex, prevColumnIndex);
+
+                _logger.LogDebug("Moved to previous cell: [{Row},{Col}]", prevRowIndex, prevColumnIndex);
 
                 OnCellChanged(new CellNavigationEventArgs
                 {
@@ -135,6 +152,7 @@ namespace Components.AdvancedDataGrid.Services.Implementation
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error moving to previous cell");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "MoveToPreviousCell"));
             }
         }
@@ -152,6 +170,8 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                 var nextRowIndex = (_currentRowIndex + 1) % _rows.Count;
                 MoveToCell(nextRowIndex, _currentColumnIndex);
 
+                _logger.LogDebug("Moved to next row: {Row}", nextRowIndex);
+
                 OnCellChanged(new CellNavigationEventArgs
                 {
                     OldRowIndex = oldRowIndex,
@@ -164,6 +184,7 @@ namespace Components.AdvancedDataGrid.Services.Implementation
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error moving to next row");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "MoveToNextRow"));
             }
         }
@@ -184,6 +205,8 @@ namespace Components.AdvancedDataGrid.Services.Implementation
 
                 MoveToCell(prevRowIndex, _currentColumnIndex);
 
+                _logger.LogDebug("Moved to previous row: {Row}", prevRowIndex);
+
                 OnCellChanged(new CellNavigationEventArgs
                 {
                     OldRowIndex = oldRowIndex,
@@ -196,6 +219,7 @@ namespace Components.AdvancedDataGrid.Services.Implementation
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error moving to previous row");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "MoveToPreviousRow"));
             }
         }
@@ -219,7 +243,8 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                 var columnName = editableColumns[columnIndex].Name;
                 CurrentCell = _rows[rowIndex].GetCell(columnName);
 
-                // Fire changed event only if position actually changed
+                _logger.LogTrace("Moved to cell: [{Row},{Col}] = {ColumnName}", rowIndex, columnIndex, columnName);
+
                 if (oldRowIndex != _currentRowIndex || oldColumnIndex != _currentColumnIndex)
                 {
                     OnCellChanged(new CellNavigationEventArgs
@@ -235,6 +260,7 @@ namespace Components.AdvancedDataGrid.Services.Implementation
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error moving to cell [{Row},{Col}]", rowIndex, columnIndex);
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "MoveToCell"));
             }
         }

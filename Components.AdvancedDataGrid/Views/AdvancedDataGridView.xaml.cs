@@ -1,4 +1,10 @@
-﻿// Views/AdvancedDataGridView.xaml.cs - OPRAVENÝ
+﻿// RpaWpfComponents/AdvancedDataGrid/Views/AdvancedDataGridView.xaml.cs
+using RpaWpfComponents.AdvancedDataGrid.Behaviors;
+using RpaWpfComponents.AdvancedDataGrid.Configuration;
+using RpaWpfComponents.AdvancedDataGrid.Events;
+using RpaWpfComponents.AdvancedDataGrid.Models;
+using RpaWpfComponents.AdvancedDataGrid.ViewModels;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -9,30 +15,26 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
-using Components.AdvancedDataGrid.Models;
-using Components.AdvancedDataGrid.ViewModels;
-using Components.AdvancedDataGrid.Configuration;
-using Components.AdvancedDataGrid.Events;
 
-namespace Components.AdvancedDataGrid.Views
+namespace RpaWpfComponents.AdvancedDataGrid.Views
 {
     public partial class AdvancedDataGridView : UserControl
     {
         private AdvancedDataGridViewModel _viewModel = null!;
+        private readonly ILogger<AdvancedDataGridView> _logger;
 
         public AdvancedDataGridView()
         {
             InitializeComponent();
+            _logger = LoggerFactory.CreateLogger<AdvancedDataGridView>();
             this.Loaded += OnLoaded;
+            _logger.LogDebug("AdvancedDataGridView created");
         }
 
         #region Public Properties and Events
 
         public event EventHandler<ComponentErrorEventArgs>? ErrorOccurred;
 
-        /// <summary>
-        /// Získanie alebo nastavenie ViewModel
-        /// </summary>
         public AdvancedDataGridViewModel? ViewModel
         {
             get => _viewModel;
@@ -53,103 +55,107 @@ namespace Components.AdvancedDataGrid.Views
             }
         }
 
-        /// <summary>
-        /// Vlastnosť pre zobrazenie/skrytie Mirror Editora
-        /// </summary>
-        public bool ShowMirrorEditor
-        {
-            get => _viewModel?.ShowMirrorEditor ?? true;
-            set
-            {
-                if (_viewModel != null)
-                {
-                    _viewModel.ShowMirrorEditor = value;
-                }
-            }
-        }
-
         #endregion
 
         #region Public Methods
 
-        /// <summary>
-        /// Inicializácia komponentu s definíciami stĺpcov a validačnými pravidlami
-        /// </summary>
         public async Task InitializeAsync(List<ColumnDefinitionModel> columns, List<ValidationRuleModel>? validationRules = null)
         {
             try
             {
-                // Vytvor ViewModel ak neexistuje
+                _logger.LogInformation("Initializing AdvancedDataGridView with {ColumnCount} columns", columns?.Count ?? 0);
+
                 if (_viewModel == null)
                 {
                     _viewModel = CreateViewModel();
                     ViewModel = _viewModel;
                 }
 
-                // Inicializuj ViewModel
                 await _viewModel.InitializeAsync(columns, validationRules ?? new List<ValidationRuleModel>());
-
-                // Vygeneruj stĺpce v DataGrid
                 GenerateDataGridColumns(columns);
-
-                // Nastav navigation service po generovaní stĺpcov
                 SetupNavigationService();
+
+                _logger.LogInformation("AdvancedDataGridView initialized successfully");
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error initializing AdvancedDataGridView");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "InitializeAsync"));
             }
         }
 
-        /// <summary>
-        /// Synchronná verzia inicializácie pre jednoduchšie použitie
-        /// </summary>
-        public void Initialize(List<ColumnDefinitionModel> columns, List<ValidationRuleModel>? validationRules = null)
-        {
-            Task.Run(async () => await InitializeAsync(columns, validationRules));
-        }
-
-        /// <summary>
-        /// Načítanie dát z DataTable
-        /// </summary>
         public async Task LoadDataAsync(DataTable dataTable)
         {
             try
             {
                 if (_viewModel == null)
-                    throw new InvalidOperationException("Component must be initialized first.");
+                    throw new InvalidOperationException("Component must be initialized first! Call InitializeAsync() before LoadDataAsync().");
 
+                if (!_viewModel.IsInitialized)
+                    throw new InvalidOperationException("Component not properly initialized! Call InitializeAsync() with validation rules first.");
+
+                _logger.LogInformation("Loading data from DataTable with {RowCount} rows", dataTable?.Rows.Count ?? 0);
                 await _viewModel.LoadDataAsync(dataTable);
+                _logger.LogInformation("Data loaded successfully with applied validations");
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error loading data from DataTable");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "LoadDataAsync"));
             }
         }
 
-        /// <summary>
-        /// Načítanie dát zo slovníkov
-        /// </summary>
         public async Task LoadDataAsync(List<Dictionary<string, object>> data)
         {
             try
             {
                 if (_viewModel == null)
-                    throw new InvalidOperationException("Component must be initialized first.");
+                    throw new InvalidOperationException("Component must be initialized first! Call InitializeAsync() before LoadDataAsync().");
 
-                // Konvertuj na DataTable
+                if (!_viewModel.IsInitialized)
+                    throw new InvalidOperationException("Component not properly initialized! Call InitializeAsync() with validation rules first.");
+
                 var dataTable = ConvertToDataTable(data);
                 await _viewModel.LoadDataAsync(dataTable);
+                _logger.LogInformation("Data loaded from dictionary list successfully");
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error loading data from dictionary list");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "LoadDataAsync"));
             }
         }
 
-        /// <summary>
-        /// Export dát do DataTable
-        /// </summary>
+        public void Reset()
+        {
+            try
+            {
+                _logger.LogInformation("Resetting AdvancedDataGridView");
+                _viewModel?.Reset();
+                MainDataGrid.Columns.Clear();
+                _logger.LogInformation("AdvancedDataGridView reset completed");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error resetting AdvancedDataGridView");
+                OnErrorOccurred(new ComponentErrorEventArgs(ex, "Reset"));
+            }
+        }
+
+        public void Initialize(List<ColumnDefinitionModel> columns, List<ValidationRuleModel>? validationRules = null)
+        {
+            try
+            {
+                Task.Run(async () => await InitializeAsync(columns, validationRules));
+                _logger.LogWarning("Used synchronous Initialize() - for full control use InitializeAsync()");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in synchronous Initialize");
+                OnErrorOccurred(new ComponentErrorEventArgs(ex, "Initialize"));
+            }
+        }
+
         public async Task<DataTable> ExportDataAsync()
         {
             try
@@ -157,18 +163,18 @@ namespace Components.AdvancedDataGrid.Views
                 if (_viewModel == null)
                     return new DataTable();
 
-                return await _viewModel.ExportDataAsync();
+                var result = await _viewModel.ExportDataAsync();
+                _logger.LogInformation("Data exported to DataTable with {RowCount} rows", result.Rows.Count);
+                return result;
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error exporting data");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "ExportDataAsync"));
                 return new DataTable();
             }
         }
 
-        /// <summary>
-        /// Validácia všetkých riadkov
-        /// </summary>
         public async Task<bool> ValidateAllRowsAsync()
         {
             try
@@ -176,18 +182,18 @@ namespace Components.AdvancedDataGrid.Views
                 if (_viewModel == null)
                     return false;
 
-                return await _viewModel.ValidateAllRowsAsync();
+                var result = await _viewModel.ValidateAllRowsAsync();
+                _logger.LogInformation("Validation completed, all valid: {AllValid}", result);
+                return result;
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error validating all rows");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "ValidateAllRowsAsync"));
                 return false;
             }
         }
 
-        /// <summary>
-        /// Vymazanie všetkých dát
-        /// </summary>
         public async Task ClearAllDataAsync()
         {
             try
@@ -195,17 +201,16 @@ namespace Components.AdvancedDataGrid.Views
                 if (_viewModel?.ClearAllDataCommand?.CanExecute(null) == true)
                 {
                     _viewModel.ClearAllDataCommand.Execute(null);
+                    _logger.LogInformation("All data cleared");
                 }
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error clearing all data");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "ClearAllDataAsync"));
             }
         }
 
-        /// <summary>
-        /// Odstránenie riadkov podľa podmienky
-        /// </summary>
         public async Task RemoveRowsByConditionAsync(string columnName, Func<object, bool> condition)
         {
             try
@@ -214,16 +219,34 @@ namespace Components.AdvancedDataGrid.Views
                     return;
 
                 await _viewModel.RemoveRowsByConditionAsync(columnName, condition);
+                _logger.LogInformation("Rows removed by condition for column: {ColumnName}", columnName);
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error removing rows by condition for column: {ColumnName}", columnName);
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "RemoveRowsByConditionAsync"));
             }
         }
 
-        /// <summary>
-        /// Odstránenie prázdnych riadkov
-        /// </summary>
+        public async Task<int> RemoveRowsByCustomValidationAsync(List<ValidationRuleModel> customValidationRules)
+        {
+            try
+            {
+                if (_viewModel == null)
+                    return 0;
+
+                var result = await _viewModel.RemoveRowsByCustomValidationAsync(customValidationRules);
+                _logger.LogInformation("Removed {RemovedCount} rows by custom validation", result);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error removing rows by custom validation");
+                OnErrorOccurred(new ComponentErrorEventArgs(ex, "RemoveRowsByCustomValidationAsync"));
+                return 0;
+            }
+        }
+
         public async Task RemoveEmptyRowsAsync()
         {
             try
@@ -231,10 +254,12 @@ namespace Components.AdvancedDataGrid.Views
                 if (_viewModel?.RemoveEmptyRowsCommand?.CanExecute(null) == true)
                 {
                     _viewModel.RemoveEmptyRowsCommand.Execute(null);
+                    _logger.LogInformation("Empty rows removed");
                 }
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error removing empty rows");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "RemoveEmptyRowsAsync"));
             }
         }
@@ -247,15 +272,14 @@ namespace Components.AdvancedDataGrid.Views
         {
             try
             {
-                // Ak ViewModel nebol vytvorený, vytvor default
                 _viewModel ??= CreateViewModel();
                 ViewModel = _viewModel;
-
-                // Nastavenie focus handlingu pre Mirror Editor
-                SetupMirrorEditorHandling();
+                SetupEventHandlers();
+                _logger.LogDebug("AdvancedDataGridView loaded");
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error during OnLoaded");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "OnLoaded"));
             }
         }
@@ -264,13 +288,11 @@ namespace Components.AdvancedDataGrid.Views
         {
             try
             {
-                // Pokús sa použiť DI
                 return DependencyInjectionConfig.GetService<AdvancedDataGridViewModel>()
                        ?? DependencyInjectionConfig.CreateViewModelWithoutDI();
             }
             catch
             {
-                // Fallback na manuálne vytvorenie
                 return DependencyInjectionConfig.CreateViewModelWithoutDI();
             }
         }
@@ -279,9 +301,11 @@ namespace Components.AdvancedDataGrid.Views
         {
             try
             {
+                _logger.LogDebug("Generating DataGrid columns");
                 MainDataGrid.Columns.Clear();
+                var orderedColumns = ReorderSpecialColumns(columns);
 
-                foreach (var column in columns)
+                foreach (var column in orderedColumns)
                 {
                     DataGridColumn gridColumn;
 
@@ -300,10 +324,60 @@ namespace Components.AdvancedDataGrid.Views
 
                     MainDataGrid.Columns.Add(gridColumn);
                 }
+
+                _logger.LogInformation("Generated {ColumnCount} columns in correct order", orderedColumns.Count);
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error generating DataGrid columns");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "GenerateDataGridColumns"));
+            }
+        }
+
+        private List<ColumnDefinitionModel> ReorderSpecialColumns(List<ColumnDefinitionModel> originalColumns)
+        {
+            try
+            {
+                var result = new List<ColumnDefinitionModel>();
+
+                var normalColumns = originalColumns.Where(c => c.Name != "ValidAlerts" && c.Name != "DeleteAction").ToList();
+                result.AddRange(normalColumns);
+
+                var deleteActionColumn = originalColumns.FirstOrDefault(c => c.Name == "DeleteAction");
+                if (deleteActionColumn != null)
+                {
+                    deleteActionColumn.DataType = typeof(object);
+                    result.Add(deleteActionColumn);
+                }
+
+                var validAlertsColumn = originalColumns.FirstOrDefault(c => c.Name == "ValidAlerts");
+                if (validAlertsColumn != null)
+                {
+                    validAlertsColumn.DataType = typeof(string);
+                    validAlertsColumn.IsReadOnly = true;
+                    result.Add(validAlertsColumn);
+                }
+                else
+                {
+                    var autoValidAlertsColumn = new ColumnDefinitionModel
+                    {
+                        Name = "ValidAlerts",
+                        DataType = typeof(string),
+                        MinWidth = 150,
+                        MaxWidth = 400,
+                        AllowResize = true,
+                        AllowSort = false,
+                        IsReadOnly = true
+                    };
+                    result.Add(autoValidAlertsColumn);
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error reordering special columns");
+                return originalColumns;
             }
         }
 
@@ -324,28 +398,67 @@ namespace Components.AdvancedDataGrid.Views
                 }
             };
 
-            // Style pre text
-            var textBlockStyle = new Style(typeof(TextBlock));
-            textBlockStyle.Setters.Add(new Setter(TextBlock.TextWrappingProperty, TextWrapping.Wrap));
-            textBlockStyle.Setters.Add(new Setter(TextBlock.PaddingProperty, new Thickness(4, 2, 4, 2)));
+            var cellStyle = new Style(typeof(DataGridCell));
 
-            // Trigger pre validation error styling na text
+            cellStyle.Setters.Add(new Setter(DataGridCell.PaddingProperty, new Thickness(4, 2, 4, 2)));
+            cellStyle.Setters.Add(new Setter(DataGridCell.VerticalAlignmentProperty, VerticalAlignment.Stretch));
+            cellStyle.Setters.Add(new Setter(DataGridCell.BorderBrushProperty, Brushes.Gray));
+            cellStyle.Setters.Add(new Setter(DataGridCell.BorderThicknessProperty, new Thickness(1, 1, 1, 1)));
+            cellStyle.Setters.Add(new Setter(DataGridCell.BackgroundProperty, Brushes.White));
+
+            var selectedTrigger = new Trigger
+            {
+                Property = DataGridCell.IsSelectedProperty,
+                Value = true
+            };
+            selectedTrigger.Setters.Add(new Setter(DataGridCell.BorderBrushProperty, new SolidColorBrush(Color.FromRgb(33, 150, 243))));
+            selectedTrigger.Setters.Add(new Setter(DataGridCell.BorderThicknessProperty, new Thickness(2, 2, 2, 2)));
+            selectedTrigger.Setters.Add(new Setter(DataGridCell.BackgroundProperty, new SolidColorBrush(Color.FromRgb(173, 216, 255))));
+            cellStyle.Triggers.Add(selectedTrigger);
+
             var validationTrigger = new DataTrigger
             {
                 Binding = new Binding($"Cells[{column.Name}].HasValidationError"),
                 Value = true
             };
-            validationTrigger.Setters.Add(new Setter(TextBlock.BackgroundProperty, new SolidColorBrush(Color.FromRgb(255, 238, 238))));
-            validationTrigger.Setters.Add(new Setter(TextBlock.ForegroundProperty, Brushes.DarkRed));
-            textBlockStyle.Triggers.Add(validationTrigger);
+            validationTrigger.Setters.Add(new Setter(DataGridCell.BorderBrushProperty, Brushes.Red));
+            validationTrigger.Setters.Add(new Setter(DataGridCell.BorderThicknessProperty, new Thickness(3, 3, 3, 3)));
+            validationTrigger.Setters.Add(new Setter(DataGridCell.BackgroundProperty, new SolidColorBrush(Color.FromRgb(255, 238, 238))));
+            cellStyle.Triggers.Add(validationTrigger);
+
+            var focusedTrigger = new Trigger
+            {
+                Property = DataGridCell.IsFocusedProperty,
+                Value = true
+            };
+            focusedTrigger.Setters.Add(new Setter(DataGridCell.BorderBrushProperty, new SolidColorBrush(Color.FromRgb(76, 175, 80))));
+            focusedTrigger.Setters.Add(new Setter(DataGridCell.BorderThicknessProperty, new Thickness(3, 3, 3, 3)));
+            focusedTrigger.Setters.Add(new Setter(DataGridCell.BackgroundProperty, new SolidColorBrush(Color.FromRgb(144, 202, 249))));
+            cellStyle.Triggers.Add(focusedTrigger);
+
+            gridColumn.CellStyle = cellStyle;
+
+            var textBlockStyle = new Style(typeof(TextBlock));
+            textBlockStyle.Setters.Add(new Setter(TextBlock.TextWrappingProperty, TextWrapping.Wrap));
+            textBlockStyle.Setters.Add(new Setter(TextBlock.PaddingProperty, new Thickness(4, 2, 4, 2)));
+            textBlockStyle.Setters.Add(new Setter(TextBlock.ForegroundProperty, Brushes.Black));
+
+            var textValidationTrigger = new DataTrigger
+            {
+                Binding = new Binding($"Cells[{column.Name}].HasValidationError"),
+                Value = true
+            };
+            textValidationTrigger.Setters.Add(new Setter(TextBlock.ForegroundProperty, Brushes.DarkRed));
+            textBlockStyle.Triggers.Add(textValidationTrigger);
 
             gridColumn.ElementStyle = textBlockStyle;
 
-            // Style pre editovanie 
             var textBoxStyle = new Style(typeof(TextBox));
             textBoxStyle.Setters.Add(new Setter(TextBox.TextWrappingProperty, TextWrapping.Wrap));
             textBoxStyle.Setters.Add(new Setter(TextBox.AcceptsReturnProperty, true));
             textBoxStyle.Setters.Add(new Setter(TextBox.PaddingProperty, new Thickness(4, 2, 4, 2)));
+            textBoxStyle.Setters.Add(new Setter(TextBox.ForegroundProperty, Brushes.Black));
+            textBoxStyle.Setters.Add(new Setter(TextBox.BorderThicknessProperty, new Thickness(0)));
             gridColumn.EditingElementStyle = textBoxStyle;
 
             return gridColumn;
@@ -353,15 +466,29 @@ namespace Components.AdvancedDataGrid.Views
 
         private DataGridColumn CreateDeleteActionColumn()
         {
-            return new DataGridTemplateColumn
+            var gridColumn = new DataGridTemplateColumn
             {
                 Header = "Akcie",
                 Width = new DataGridLength(60, DataGridLengthUnitType.Pixel),
                 CanUserResize = false,
                 CanUserSort = false,
                 IsReadOnly = true,
+                CanUserReorder = false,
                 CellTemplate = (DataTemplate)Resources["DeleteButtonTemplate"]
             };
+
+            var cellStyle = new Style(typeof(DataGridCell));
+            var neutralBackground = new SolidColorBrush(Color.FromRgb(248, 249, 250));
+            var neutralBorder = Brushes.LightGray;
+            var neutralThickness = new Thickness(1);
+
+            cellStyle.Setters.Add(new Setter(DataGridCell.PaddingProperty, new Thickness(2, 2, 2, 2)));
+            cellStyle.Setters.Add(new Setter(DataGridCell.BackgroundProperty, neutralBackground));
+            cellStyle.Setters.Add(new Setter(DataGridCell.BorderBrushProperty, neutralBorder));
+            cellStyle.Setters.Add(new Setter(DataGridCell.BorderThicknessProperty, neutralThickness));
+
+            gridColumn.CellStyle = cellStyle;
+            return gridColumn;
         }
 
         private DataGridColumn CreateValidAlertsColumn(ColumnDefinitionModel column)
@@ -374,13 +501,24 @@ namespace Components.AdvancedDataGrid.Views
                 CanUserResize = true,
                 CanUserSort = false,
                 IsReadOnly = true,
+                CanUserReorder = false,
                 Binding = new Binding("ValidationErrorsText")
                 {
                     Mode = BindingMode.OneWay
                 }
             };
 
-            // Style pre text wrapping
+            var cellStyle = new Style(typeof(DataGridCell));
+            var neutralBackground = new SolidColorBrush(Color.FromRgb(248, 249, 250));
+            var neutralBorder = Brushes.LightGray;
+
+            cellStyle.Setters.Add(new Setter(DataGridCell.PaddingProperty, new Thickness(4, 2, 4, 2)));
+            cellStyle.Setters.Add(new Setter(DataGridCell.BackgroundProperty, neutralBackground));
+            cellStyle.Setters.Add(new Setter(DataGridCell.BorderBrushProperty, neutralBorder));
+            cellStyle.Setters.Add(new Setter(DataGridCell.BorderThicknessProperty, new Thickness(1)));
+
+            gridColumn.CellStyle = cellStyle;
+
             var textBlockStyle = new Style(typeof(TextBlock));
             textBlockStyle.Setters.Add(new Setter(TextBlock.TextWrappingProperty, TextWrapping.Wrap));
             textBlockStyle.Setters.Add(new Setter(TextBlock.PaddingProperty, new Thickness(4, 2, 4, 2)));
@@ -398,166 +536,157 @@ namespace Components.AdvancedDataGrid.Views
                 if (_viewModel?.NavigationService != null)
                 {
                     _viewModel.NavigationService.Initialize(_viewModel.Rows.ToList(), _viewModel.Columns.Select(c => c.Model).ToList());
+                    _logger.LogDebug("Navigation service setup completed");
                 }
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error setting up navigation service");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "SetupNavigationService"));
             }
         }
 
-        private void SetupMirrorEditorHandling()
+        private void SetupEventHandlers()
         {
             try
             {
-                // Nastavenie handling pre keyboard navigation medzi DataGrid a Mirror Editor
-                MainDataGrid.PreviewKeyDown += OnMainDataGridKeyDown;
+                MainDataGrid.PreviewKeyDown += OnMainDataGridPreviewKeyDown;
                 MainDataGrid.SelectedCellsChanged += OnSelectedCellsChanged;
                 MainDataGrid.CurrentCellChanged += OnCurrentCellChanged;
                 MainDataGrid.CellEditEnding += OnCellEditEnding;
+                MainDataGrid.PreviewKeyDown += OnMainDataGridPreviewKeyDownForPaste;
+                _logger.LogDebug("Event handlers setup completed");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error setting up event handlers");
+                OnErrorOccurred(new ComponentErrorEventArgs(ex, "SetupEventHandlers"));
+            }
+        }
 
-                // Handling pre Ctrl+C a Ctrl+V
-                MainDataGrid.KeyDown += OnMainDataGridKeyDown_Shortcuts;
-
-                if (MirrorTextBox != null)
+        private void OnMainDataGridPreviewKeyDownForPaste(object sender, KeyEventArgs e)
+        {
+            try
+            {
+                if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.V)
                 {
-                    MirrorTextBox.PreviewKeyDown += OnMirrorTextBoxKeyDown;
-                    MirrorTextBox.GotFocus += OnMirrorTextBoxGotFocus;
-                    MirrorTextBox.LostFocus += OnMirrorTextBoxLostFocus;
+                    if (IsCurrentCellOnSpecialColumn())
+                    {
+                        _logger.LogDebug("PASTE blocked on special column");
+                        e.Handled = true;
+                        return;
+                    }
+
+                    if (_viewModel?.PasteCommand?.CanExecute(null) == true)
+                    {
+                        _viewModel.PasteCommand.Execute(null);
+                    }
+
+                    e.Handled = true;
+                }
+                else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.C)
+                {
+                    if (IsCurrentCellOnSpecialColumn())
+                    {
+                        _logger.LogDebug("COPY blocked on special column");
+                        e.Handled = true;
+                        return;
+                    }
+
+                    ExecuteFilteredCopy();
+                    e.Handled = true;
                 }
             }
             catch (Exception ex)
             {
-                OnErrorOccurred(new ComponentErrorEventArgs(ex, "SetupMirrorEditorHandling"));
+                _logger.LogError(ex, "Error in clipboard operations");
+                OnErrorOccurred(new ComponentErrorEventArgs(ex, "OnMainDataGridPreviewKeyDownForPaste"));
             }
         }
 
-        private void OnMainDataGridKeyDown_Shortcuts(object sender, KeyEventArgs e)
+        private void ExecuteFilteredCopy()
         {
             try
             {
-                if (Keyboard.Modifiers == ModifierKeys.Control)
+                var selectedCells = MainDataGrid.SelectedCells.ToList();
+                if (selectedCells.Count == 0) return;
+
+                var normalCells = selectedCells
+                    .Where(cell => cell.Column?.Header is string columnName && !IsSpecialColumn(columnName))
+                    .ToList();
+
+                if (normalCells.Count == 0) return;
+
+                var dataMap = CreateDataMapFromCells(normalCells);
+                var clipboardText = ConvertDataMapToExcelFormat(dataMap);
+
+                if (!string.IsNullOrEmpty(clipboardText))
                 {
-                    switch (e.Key)
+                    System.Windows.Clipboard.SetText(clipboardText);
+                    _logger.LogDebug("Copied filtered data to clipboard");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error executing filtered copy");
+            }
+        }
+
+        private Dictionary<(int row, int col), string> CreateDataMapFromCells(List<DataGridCellInfo> cells)
+        {
+            var dataMap = new Dictionary<(int row, int col), string>();
+            var normalColumns = _viewModel?.Columns
+                .Where(c => !c.IsSpecialColumn)
+                .Select(c => c.Name)
+                .ToList() ?? new List<string>();
+
+            foreach (var cell in cells)
+            {
+                if (cell.Item is DataGridRowModel row &&
+                    cell.Column?.Header is string columnName)
+                {
+                    var rowIndex = _viewModel?.Rows.IndexOf(row) ?? -1;
+                    var colIndex = normalColumns.IndexOf(columnName);
+
+                    if (rowIndex >= 0 && colIndex >= 0)
                     {
-                        case Key.C:
-                            if (_viewModel?.CopyCommand?.CanExecute(null) == true)
-                            {
-                                _viewModel.CopyCommand.Execute(null);
-                                e.Handled = true;
-                            }
-                            break;
-                        case Key.V:
-                            if (_viewModel?.PasteCommand?.CanExecute(null) == true)
-                            {
-                                _viewModel.PasteCommand.Execute(null);
-                                e.Handled = true;
-                            }
-                            break;
+                        var cellValue = row.GetCell(columnName)?.Value?.ToString() ?? "";
+                        dataMap[(rowIndex, colIndex)] = cellValue;
                     }
                 }
             }
-            catch (Exception ex)
-            {
-                OnErrorOccurred(new ComponentErrorEventArgs(ex, "OnMainDataGridKeyDown_Shortcuts"));
-            }
+
+            return dataMap;
         }
 
-        private void OnMainDataGridKeyDown(object sender, KeyEventArgs e)
+        private string ConvertDataMapToExcelFormat(Dictionary<(int row, int col), string> dataMap)
         {
-            try
+            if (dataMap.Count == 0) return "";
+
+            var minRow = dataMap.Keys.Min(k => k.row);
+            var maxRow = dataMap.Keys.Max(k => k.row);
+            var minCol = dataMap.Keys.Min(k => k.col);
+            var maxCol = dataMap.Keys.Max(k => k.col);
+
+            var result = new List<string>();
+
+            for (int r = minRow; r <= maxRow; r++)
             {
-                // Handling pre špeciálne klávesy
-                if (e.Key == Key.F2 && ShowMirrorEditor)
+                var rowData = new List<string>();
+                for (int c = minCol; c <= maxCol; c++)
                 {
-                    // F2 = focus na Mirror Editor
-                    MirrorTextBox?.Focus();
-                    MirrorTextBox?.SelectAll();
-                    if (_viewModel?.MirrorEditor != null)
-                    {
-                        _viewModel.MirrorEditor.StartEditing();
-                    }
-                    e.Handled = true;
+                    var cellValue = dataMap.TryGetValue((r, c), out var value) ? value : "";
+                    rowData.Add(cellValue);
                 }
-                else if (e.Key == Key.Escape)
-                {
-                    // ESC = cancel current edit
-                    MainDataGrid.CancelEdit();
-                    if (_viewModel?.MirrorEditor != null)
-                    {
-                        _viewModel.MirrorEditor.CancelChanges();
-                    }
-                    e.Handled = true;
-                }
+                result.Add(string.Join("\t", rowData));
             }
-            catch (Exception ex)
-            {
-                OnErrorOccurred(new ComponentErrorEventArgs(ex, "OnMainDataGridKeyDown"));
-            }
+
+            return string.Join("\n", result);
         }
 
-        private void OnMirrorTextBoxKeyDown(object sender, KeyEventArgs e)
+        private void OnMainDataGridPreviewKeyDown(object sender, KeyEventArgs e)
         {
-            try
-            {
-                if (e.Key == Key.Escape)
-                {
-                    // ESC = cancel a návrat na DataGrid
-                    _viewModel?.MirrorEditor?.CancelChanges();
-                    MainDataGrid.Focus();
-                    e.Handled = true;
-                }
-                else if (e.Key == Key.Enter && Keyboard.Modifiers != ModifierKeys.Shift)
-                {
-                    // Enter (bez Shift) = commit a návrat na DataGrid
-                    _viewModel?.MirrorEditor?.CommitChanges();
-                    MainDataGrid.Focus();
-                    e.Handled = true;
-                }
-                else if (e.Key == Key.Tab)
-                {
-                    // Tab = commit a move to next cell
-                    _viewModel?.MirrorEditor?.CommitChanges();
-                    _viewModel?.NavigationService?.MoveToNextCell();
-                    MainDataGrid.Focus();
-                    e.Handled = true;
-                }
-            }
-            catch (Exception ex)
-            {
-                OnErrorOccurred(new ComponentErrorEventArgs(ex, "OnMirrorTextBoxKeyDown"));
-            }
-        }
-
-        private void OnMirrorTextBoxGotFocus(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (_viewModel?.MirrorEditor != null)
-                {
-                    _viewModel.MirrorEditor.StartEditing();
-                }
-            }
-            catch (Exception ex)
-            {
-                OnErrorOccurred(new ComponentErrorEventArgs(ex, "OnMirrorTextBoxGotFocus"));
-            }
-        }
-
-        private void OnMirrorTextBoxLostFocus(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                // Auto-commit when losing focus (if not cancelled)
-                if (_viewModel?.MirrorEditor != null && _viewModel.MirrorEditor.IsEditing)
-                {
-                    _viewModel.MirrorEditor.CommitChanges();
-                }
-            }
-            catch (Exception ex)
-            {
-                OnErrorOccurred(new ComponentErrorEventArgs(ex, "OnMirrorTextBoxLostFocus"));
-            }
+            // Additional key handling if needed
         }
 
         private void OnSelectedCellsChanged(object sender, SelectedCellsChangedEventArgs e)
@@ -568,6 +697,7 @@ namespace Components.AdvancedDataGrid.Views
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error handling selected cells changed");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "OnSelectedCellsChanged"));
             }
         }
@@ -580,6 +710,7 @@ namespace Components.AdvancedDataGrid.Views
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error handling current cell changed");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "OnCurrentCellChanged"));
             }
         }
@@ -588,14 +719,14 @@ namespace Components.AdvancedDataGrid.Views
         {
             try
             {
-                // Trigger validation when cell edit ends
                 if (e.Row.Item is DataGridRowModel row)
                 {
-                    Task.Run(async () => await _viewModel?.ValidateRowAsync(row));
+                    _ = Task.Run(async () => await _viewModel?.ValidateRowAsync(row));
                 }
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error handling cell edit ending");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "OnCellEditEnding"));
             }
         }
@@ -616,19 +747,12 @@ namespace Components.AdvancedDataGrid.Views
                     if (rowIndex >= 0 && columnIndex >= 0)
                     {
                         _viewModel.NavigationService.MoveToCell(rowIndex, columnIndex);
-
-                        // Manuálne update Mirror Editor ak sa event nespustí
-                        var cell = row.GetCell(columnName);
-                        if (cell != null && _viewModel.MirrorEditor != null)
-                        {
-                            _viewModel.MirrorEditor.SetCurrentCell(cell);
-                            System.Diagnostics.Debug.WriteLine($"Mirror Editor updated with cell: {columnName} = '{cell.Value}'");
-                        }
                     }
                 }
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error updating current cell from selection");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "UpdateCurrentCellFromSelection"));
             }
         }
@@ -639,13 +763,11 @@ namespace Components.AdvancedDataGrid.Views
 
             if (data?.Count > 0)
             {
-                // Vytvor stĺpce na základe prvého riadku
                 foreach (var key in data[0].Keys)
                 {
                     dataTable.Columns.Add(key, typeof(object));
                 }
 
-                // Pridaj dáta
                 foreach (var row in data)
                 {
                     var dataRow = dataTable.NewRow();
@@ -658,6 +780,29 @@ namespace Components.AdvancedDataGrid.Views
             }
 
             return dataTable;
+        }
+
+        private bool IsCurrentCellOnSpecialColumn()
+        {
+            try
+            {
+                if (MainDataGrid.CurrentCell.IsValid &&
+                    MainDataGrid.CurrentCell.Column?.Header is string columnName)
+                {
+                    return IsSpecialColumn(columnName);
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking if current cell is on special column");
+                return false;
+            }
+        }
+
+        private bool IsSpecialColumn(string columnName)
+        {
+            return columnName == "DeleteAction" || columnName == "ValidAlerts";
         }
 
         private void OnViewModelError(object sender, ComponentErrorEventArgs e)

@@ -1,12 +1,12 @@
 ﻿// ===========================================
-// Helpers/ValidationHelper.cs
+// RpaWpfComponents/AdvancedDataGrid/Helpers/ValidationHelper.cs
 // ===========================================
+using RpaWpfComponents.AdvancedDataGrid.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Components.AdvancedDataGrid.Models;
 
-namespace Components.AdvancedDataGrid.Helpers
+namespace RpaWpfComponents.AdvancedDataGrid.Helpers
 {
     public static class ValidationHelper
     {

@@ -1,12 +1,12 @@
 ﻿// ===========================================
-// Converters/BoolToVisibilityConverter.cs
+// RpaWpfComponents/AdvancedDataGrid/Converters/BoolToVisibilityConverter.cs
 // ===========================================
 using System;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 
-namespace Components.AdvancedDataGrid.Converters
+namespace RpaWpfComponents.AdvancedDataGrid.Converters
 {
     public class BoolToVisibilityConverter : IValueConverter
     {

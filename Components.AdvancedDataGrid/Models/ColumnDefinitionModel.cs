@@ -1,12 +1,12 @@
 ﻿// ===========================================
-// Models/ColumnDefinitionModel.cs
+// RpaWpfComponents/AdvancedDataGrid/Models/ColumnDefinitionModel.cs
 // ===========================================
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace Components.AdvancedDataGrid.Models
+namespace RpaWpfComponents.AdvancedDataGrid.Models
 {
     public class ColumnDefinitionModel : INotifyPropertyChanged
     {
@@ -66,7 +66,7 @@ namespace Components.AdvancedDataGrid.Models
 
         protected virtual bool SetProperty<T>(ref T backingStore, T value, [CallerMemberName] string propertyName = "")
         {
-            if (EqualityComparer<T>.Default.Equals(backingStore, value))  // Teraz bude fungovať
+            if (EqualityComparer<T>.Default.Equals(backingStore, value))
                 return false;
 
             backingStore = value;

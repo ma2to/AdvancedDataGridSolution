@@ -1,4 +1,11 @@
-﻿// ViewModels/AdvancedDataGridViewModel.cs - OPRAVENÝ
+﻿// RpaWpfComponents/AdvancedDataGrid/ViewModels/AdvancedDataGridViewModel.cs
+using RpaWpfComponents.AdvancedDataGrid.ViewModels;
+using Microsoft.Extensions.Logging;
+using RpaWpfComponents.AdvancedDataGrid.Collections;
+using RpaWpfComponents.AdvancedDataGrid.Commands;
+using RpaWpfComponents.AdvancedDataGrid.Events;
+using RpaWpfComponents.AdvancedDataGrid.Models;
+using RpaWpfComponents.AdvancedDataGrid.Services.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -8,13 +15,8 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows.Input;
-using Components.AdvancedDataGrid.Models;
-using Components.AdvancedDataGrid.Services.Interfaces;
-using Components.AdvancedDataGrid.Commands;
-using Components.AdvancedDataGrid.Events;
-using Components.AdvancedDataGrid.Collections;
 
-namespace Components.AdvancedDataGrid.ViewModels
+namespace RpaWpfComponents.AdvancedDataGrid.ViewModels
 {
     public class AdvancedDataGridViewModel : INotifyPropertyChanged
     {
@@ -24,14 +26,14 @@ namespace Components.AdvancedDataGrid.ViewModels
         private readonly IColumnService _columnService;
         private readonly IExportService _exportService;
         private readonly INavigationService _navigationService;
+        private readonly ILogger<AdvancedDataGridViewModel> _logger;
 
         private ObservableRangeCollection<DataGridRowModel> _rows = new();
         private ObservableRangeCollection<ColumnDefinitionViewModel> _columns = new();
-        private MirrorEditorViewModel? _mirrorEditor;
-        private bool _showMirrorEditor = true;
         private bool _isValidating = false;
         private double _validationProgress = 0;
         private string _validationStatus = "Pripravené";
+        private bool _isInitialized = false;
 
         public AdvancedDataGridViewModel(
             IDataService dataService,
@@ -39,7 +41,8 @@ namespace Components.AdvancedDataGrid.ViewModels
             IClipboardService clipboardService,
             IColumnService columnService,
             IExportService exportService,
-            INavigationService navigationService)
+            INavigationService navigationService,
+            ILogger<AdvancedDataGridViewModel>? logger = null)
         {
             _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
             _validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
@@ -47,13 +50,17 @@ namespace Components.AdvancedDataGrid.ViewModels
             _columnService = columnService ?? throw new ArgumentNullException(nameof(columnService));
             _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
             _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
+            _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<AdvancedDataGridViewModel>.Instance;
 
             InitializeCollections();
             InitializeCommands();
             SubscribeToEvents();
+
+            _logger.LogDebug("AdvancedDataGridViewModel created");
         }
 
-        // Properties
+        #region Properties
+
         public ObservableRangeCollection<DataGridRowModel> Rows
         {
             get => _rows;
@@ -64,18 +71,6 @@ namespace Components.AdvancedDataGrid.ViewModels
         {
             get => _columns;
             set => SetProperty(ref _columns, value);
-        }
-
-        public MirrorEditorViewModel? MirrorEditor
-        {
-            get => _mirrorEditor;
-            set => SetProperty(ref _mirrorEditor, value);
-        }
-
-        public bool ShowMirrorEditor
-        {
-            get => _showMirrorEditor;
-            set => SetProperty(ref _showMirrorEditor, value);
         }
 
         public bool IsValidating
@@ -96,10 +91,13 @@ namespace Components.AdvancedDataGrid.ViewModels
             set => SetProperty(ref _validationStatus, value);
         }
 
-        // Navigation Service property pre bindings
         public INavigationService NavigationService => _navigationService;
+        public bool IsInitialized => _isInitialized;
 
-        // Commands - OPRAVENÉ nullability
+        #endregion
+
+        #region Commands
+
         public ICommand ValidateAllCommand { get; private set; } = null!;
         public ICommand ClearAllDataCommand { get; private set; } = null!;
         public ICommand RemoveEmptyRowsCommand { get; private set; } = null!;
@@ -108,45 +106,50 @@ namespace Components.AdvancedDataGrid.ViewModels
         public ICommand DeleteRowCommand { get; private set; } = null!;
         public ICommand ExportToDataTableCommand { get; private set; } = null!;
 
-        // Public Methods
+        #endregion
+
+        #region Public Methods
+
         public async Task InitializeAsync(List<ColumnDefinitionModel> columnDefinitions, List<ValidationRuleModel>? validationRules = null)
         {
             try
             {
-                // Spracuj stĺpce
-                var processedColumns = _columnService.ProcessColumnDefinitions(columnDefinitions);
+                if (_isInitialized)
+                {
+                    _logger.LogWarning("Component already initialized. Call Reset() first if needed.");
+                    return;
+                }
 
-                // Inicializuj DataService
+                _logger.LogInformation("Initializing AdvancedDataGrid with {ColumnCount} columns and {RuleCount} validation rules",
+                    columnDefinitions?.Count ?? 0, validationRules?.Count ?? 0);
+
+                var processedColumns = _columnService.ProcessColumnDefinitions(columnDefinitions ?? new List<ColumnDefinitionModel>());
                 _dataService.Initialize(processedColumns);
 
-                // Vytvor ViewModely pre stĺpce
                 var columnVMs = processedColumns.Select(c => new ColumnDefinitionViewModel(c)).ToList();
                 Columns.Clear();
                 Columns.AddRange(columnVMs);
 
-                // Nastav validačné pravidlá
                 if (validationRules != null)
                 {
                     foreach (var rule in validationRules)
                     {
                         _validationService.AddValidationRule(rule);
                     }
+                    _logger.LogDebug("Added {RuleCount} validation rules", validationRules.Count);
                 }
 
-                // Vytvor počiatočné riadky
                 await CreateInitialRowsAsync();
-
-                // Inicializuj navigation service s delay aby sa DataGrid stihol vytvoriť
-                await Task.Delay(100);
                 _navigationService.Initialize(Rows.ToList(), processedColumns);
 
-                // Inicializuj mirror editor
-                MirrorEditor = new MirrorEditorViewModel(_navigationService);
-
-                System.Diagnostics.Debug.WriteLine($"Initialized with {Rows.Count} rows, {Columns.Count} columns, {validationRules?.Count ?? 0} validation rules");
+                _isInitialized = true;
+                _logger.LogInformation("AdvancedDataGrid initialization completed: {RowCount} rows, {ColumnCount} columns",
+                    Rows.Count, Columns.Count);
             }
             catch (Exception ex)
             {
+                _isInitialized = false;
+                _logger.LogError(ex, "Error during initialization");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "InitializeAsync"));
             }
         }
@@ -155,69 +158,67 @@ namespace Components.AdvancedDataGrid.ViewModels
         {
             try
             {
+                if (!_isInitialized)
+                    throw new InvalidOperationException("Component must be initialized first!");
+
+                _logger.LogInformation("Loading data from DataTable with {RowCount} rows", dataTable?.Rows.Count ?? 0);
+
                 IsValidating = true;
                 ValidationStatus = "Načítavajú sa dáta...";
                 ValidationProgress = 0;
 
-                // Clear existing rows
                 Rows.Clear();
 
-                // Load data and convert to DataGridRowModel
                 var newRows = new List<DataGridRowModel>();
                 var rowIndex = 0;
-                var totalRows = dataTable.Rows.Count;
+                var totalRows = dataTable?.Rows.Count ?? 0;
 
-                foreach (DataRow dataRow in dataTable.Rows)
+                if (dataTable != null)
                 {
-                    var gridRow = new DataGridRowModel();
-
-                    foreach (var column in Columns)
+                    foreach (DataRow dataRow in dataTable.Rows)
                     {
-                        var cell = new DataGridCellModel
-                        {
-                            ColumnName = column.Name,
-                            DataType = column.DataType
-                        };
+                        var gridRow = CreateRowForLoading();
 
-                        if (dataTable.Columns.Contains(column.Name) && !column.IsSpecialColumn)
+                        _logger.LogTrace("Loading row {RowIndex}/{TotalRows}", rowIndex + 1, totalRows);
+
+                        foreach (var column in Columns.Where(c => !c.IsSpecialColumn))
                         {
-                            var value = dataRow[column.Name];
-                            cell.Value = value == DBNull.Value ? null : value;
+                            if (dataTable.Columns.Contains(column.Name))
+                            {
+                                var value = dataRow[column.Name];
+                                var cell = gridRow.GetCell(column.Name);
+                                if (cell != null)
+                                {
+                                    cell.SetValueWithoutValidation(value == DBNull.Value ? null : value);
+                                }
+                            }
                         }
 
-                        gridRow.AddCell(column.Name, cell);
+                        await ValidateRowAfterLoading(gridRow);
 
-                        // Subscribe to cell value changes for auto-validation
-                        cell.ValueChanged += async (s, e) => await OnCellValueChanged(gridRow, cell);
+                        newRows.Add(gridRow);
+                        rowIndex++;
+                        ValidationProgress = (double)rowIndex / totalRows * 90;
                     }
-
-                    newRows.Add(gridRow);
-
-                    // Update progress
-                    rowIndex++;
-                    ValidationProgress = (double)rowIndex / totalRows * 50; // 50% for loading
                 }
 
-                // Add remaining empty rows to reach minimum count
-                var minimumRows = 50;
-                while (newRows.Count < minimumRows)
+                while (newRows.Count < 50)
                 {
-                    newRows.Add(CreateEmptyRow());
+                    newRows.Add(CreateEmptyRowWithRealTimeValidation());
                 }
 
-                // Add all rows to collection
                 Rows.AddRange(newRows);
 
-                ValidationStatus = "Spúšťa sa validácia...";
-                ValidationProgress = 50;
-
-                // Validate all loaded data
-                await ValidateAllRowsAsync();
-
-                ValidationStatus = "Hotovo";
+                ValidationStatus = "Validácia dokončená";
                 ValidationProgress = 100;
 
-                await Task.Delay(2000); // Show status for 2 seconds
+                var validRows = newRows.Count(r => !r.IsEmpty && !r.HasValidationErrors);
+                var invalidRows = newRows.Count(r => !r.IsEmpty && r.HasValidationErrors);
+
+                _logger.LogInformation("Data loaded: {TotalRows} rows, {ValidRows} valid, {InvalidRows} invalid",
+                    totalRows, validRows, invalidRows);
+
+                await Task.Delay(2000);
                 IsValidating = false;
                 ValidationStatus = "Pripravené";
             }
@@ -225,6 +226,24 @@ namespace Components.AdvancedDataGrid.ViewModels
             {
                 IsValidating = false;
                 ValidationStatus = "Chyba pri načítavaní";
+                _logger.LogError(ex, "Error loading data from DataTable");
+                OnErrorOccurred(new ComponentErrorEventArgs(ex, "LoadDataAsync"));
+            }
+        }
+
+        public async Task LoadDataAsync(List<Dictionary<string, object>> data)
+        {
+            try
+            {
+                if (!_isInitialized)
+                    throw new InvalidOperationException("Component must be initialized first!");
+
+                var dataTable = ConvertToDataTable(data);
+                await LoadDataAsync(dataTable);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading data from dictionary list");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "LoadDataAsync"));
             }
         }
@@ -233,11 +252,15 @@ namespace Components.AdvancedDataGrid.ViewModels
         {
             try
             {
+                _logger.LogDebug("Exporting data to DataTable");
                 var columnDefinitions = Columns.Select(c => c.Model).ToList();
-                return await _exportService.ExportToDataTableAsync(Rows.ToList(), columnDefinitions);
+                var result = await _exportService.ExportToDataTableAsync(Rows.ToList(), columnDefinitions);
+                _logger.LogInformation("Exported {RowCount} rows to DataTable", result.Rows.Count);
+                return result;
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error exporting data");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "ExportDataAsync"));
                 return new DataTable();
             }
@@ -247,31 +270,20 @@ namespace Components.AdvancedDataGrid.ViewModels
         {
             try
             {
+                _logger.LogDebug("Starting validation of all rows");
                 IsValidating = true;
                 ValidationProgress = 0;
                 ValidationStatus = "Validujú sa riadky...";
 
                 var dataRows = Rows.Where(r => !r.IsEmpty).ToList();
-                var totalRows = dataRows.Count;
-                var processedRows = 0;
+                var results = await _validationService.ValidateAllRowsAsync(dataRows);
 
-                var allValid = true;
-
-                foreach (var row in dataRows)
-                {
-                    var results = await _validationService.ValidateRowAsync(row);
-                    if (results.Any(r => !r.IsValid))
-                    {
-                        allValid = false;
-                    }
-
-                    processedRows++;
-                    ValidationProgress = (double)processedRows / totalRows * 100;
-                }
-
+                var allValid = results.All(r => r.IsValid);
                 ValidationStatus = allValid ? "Všetky riadky sú validné" : "Nájdené validačné chyby";
 
-                await Task.Delay(2000); // Show status for 2 seconds
+                _logger.LogInformation("Validation completed: all valid = {AllValid}", allValid);
+
+                await Task.Delay(2000);
                 ValidationStatus = "Pripravené";
                 IsValidating = false;
 
@@ -281,6 +293,7 @@ namespace Components.AdvancedDataGrid.ViewModels
             {
                 IsValidating = false;
                 ValidationStatus = "Chyba pri validácii";
+                _logger.LogError(ex, "Error validating all rows");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "ValidateAllRowsAsync"));
                 return false;
             }
@@ -294,8 +307,79 @@ namespace Components.AdvancedDataGrid.ViewModels
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error validating row");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "ValidateRowAsync"));
                 return new List<ValidationResultModel>();
+            }
+        }
+
+        public void Reset()
+        {
+            try
+            {
+                _logger.LogInformation("Resetting component");
+
+                Rows.Clear();
+                Columns.Clear();
+                _validationService.ClearValidationRules();
+                _isInitialized = false;
+
+                IsValidating = false;
+                ValidationProgress = 0;
+                ValidationStatus = "Pripravené";
+
+                _logger.LogInformation("Component reset completed");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during reset");
+                OnErrorOccurred(new ComponentErrorEventArgs(ex, "Reset"));
+            }
+        }
+
+        public async Task<int> RemoveRowsByCustomValidationAsync(List<ValidationRuleModel> customValidationRules)
+        {
+            try
+            {
+                if (!_isInitialized || customValidationRules?.Count == 0)
+                    return 0;
+
+                _logger.LogDebug("Removing rows by custom validation with {RuleCount} rules", customValidationRules.Count);
+
+                var rowsToRemove = new List<DataGridRowModel>();
+                var dataRows = Rows.Where(r => !r.IsEmpty).ToList();
+
+                foreach (var row in dataRows)
+                {
+                    foreach (var rule in customValidationRules)
+                    {
+                        var cell = row.GetCell(rule.ColumnName);
+                        if (cell != null && !rule.Validate(cell.Value, row))
+                        {
+                            rowsToRemove.Add(row);
+                            break;
+                        }
+                    }
+                }
+
+                foreach (var row in rowsToRemove)
+                {
+                    Rows.Remove(row);
+                }
+
+                while (Rows.Count < 50)
+                {
+                    Rows.Add(CreateEmptyRowWithRealTimeValidation());
+                }
+
+                _logger.LogInformation("Removed {RowCount} rows by custom validation", rowsToRemove.Count);
+                return rowsToRemove.Count;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error removing rows by custom validation");
+                OnErrorOccurred(new ComponentErrorEventArgs(ex, "RemoveRowsByCustomValidationAsync"));
+                return 0;
             }
         }
 
@@ -303,44 +387,48 @@ namespace Components.AdvancedDataGrid.ViewModels
         {
             try
             {
-                if (columnName == "HasValidationErrors")
-                {
-                    // Špeciálny handling pre HasValidationErrors
-                    var rowsToRemove = new List<DataGridRowModel>();
+                _logger.LogDebug("Removing rows by condition for column: {ColumnName}", columnName);
 
-                    foreach (var row in Rows.Where(r => !r.IsEmpty).ToList())
+                var rowsToRemove = new List<DataGridRowModel>();
+
+                foreach (var row in Rows.Where(r => !r.IsEmpty).ToList())
+                {
+                    if (columnName == "HasValidationErrors")
                     {
                         if (condition(row.HasValidationErrors))
-                        {
                             rowsToRemove.Add(row);
-                        }
                     }
-
-                    foreach (var row in rowsToRemove)
+                    else
                     {
-                        Rows.Remove(row);
+                        var cell = row.GetCell(columnName);
+                        if (cell != null && condition(cell.Value))
+                            rowsToRemove.Add(row);
                     }
-
-                    // Pridaj prázdne riadky na koniec
-                    while (Rows.Count < 50)
-                    {
-                        Rows.Add(CreateEmptyRow());
-                    }
-
-                    System.Diagnostics.Debug.WriteLine($"Removed {rowsToRemove.Count} invalid rows");
                 }
-                else
+
+                foreach (var row in rowsToRemove)
                 {
-                    await _dataService.RemoveRowsByConditionAsync(columnName, condition);
+                    Rows.Remove(row);
                 }
+
+                while (Rows.Count < 50)
+                {
+                    Rows.Add(CreateEmptyRowWithRealTimeValidation());
+                }
+
+                _logger.LogInformation("Removed {RowCount} rows by condition for column: {ColumnName}", rowsToRemove.Count, columnName);
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error removing rows by condition for column: {ColumnName}", columnName);
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "RemoveRowsByConditionAsync"));
             }
         }
 
-        // Private Methods
+        #endregion
+
+        #region Private Methods
+
         private void InitializeCollections()
         {
             Rows = new ObservableRangeCollection<DataGridRowModel>();
@@ -364,7 +452,6 @@ namespace Components.AdvancedDataGrid.ViewModels
             _dataService.ErrorOccurred += OnDataServiceErrorOccurred;
             _validationService.ValidationCompleted += OnValidationCompleted;
             _validationService.ValidationErrorOccurred += OnValidationServiceErrorOccurred;
-            _navigationService.CellChanged += OnCellChanged;
             _navigationService.ErrorOccurred += OnNavigationServiceErrorOccurred;
         }
 
@@ -372,9 +459,9 @@ namespace Components.AdvancedDataGrid.ViewModels
         {
             var rows = new List<DataGridRowModel>();
 
-            for (int i = 0; i < 50; i++) // 50 počiatočných riadkov
+            for (int i = 0; i < 50; i++)
             {
-                var row = CreateEmptyRow();
+                var row = CreateEmptyRowWithRealTimeValidation();
                 rows.Add(row);
             }
 
@@ -382,7 +469,7 @@ namespace Components.AdvancedDataGrid.ViewModels
             Rows.AddRange(rows);
         }
 
-        private DataGridRowModel CreateEmptyRow()
+        private DataGridRowModel CreateRowForLoading()
         {
             var row = new DataGridRowModel();
 
@@ -395,28 +482,76 @@ namespace Components.AdvancedDataGrid.ViewModels
                     Value = null
                 };
 
-                // Subscribe to cell value changes for auto-validation
-                cell.ValueChanged += async (s, e) => await OnCellValueChanged(row, cell);
-
                 row.AddCell(column.Name, cell);
             }
 
             return row;
         }
 
-        private async Task OnCellValueChanged(DataGridRowModel row, DataGridCellModel cell)
+        private DataGridRowModel CreateEmptyRowWithRealTimeValidation()
+        {
+            var row = new DataGridRowModel();
+
+            foreach (var column in Columns)
+            {
+                var cell = new DataGridCellModel
+                {
+                    ColumnName = column.Name,
+                    DataType = column.DataType,
+                    Value = null
+                };
+
+                cell.ValueChanged += async (s, e) => await OnCellValueChangedRealTime(row, cell);
+                row.AddCell(column.Name, cell);
+            }
+
+            return row;
+        }
+
+        private async Task ValidateRowAfterLoading(DataGridRowModel row)
         {
             try
             {
-                // Auto-validate cell when value changes
-                await _validationService.ValidateCellAsync(cell, row);
+                row.UpdateEmptyStatusAfterLoading();
 
-                // Update row validation status
+                if (!row.IsEmpty)
+                {
+                    foreach (var cell in row.Cells.Values.Where(c => !_columnService.IsSpecialColumn(c.ColumnName)))
+                    {
+                        await _validationService.ValidateCellAsync(cell, row);
+                    }
+
+                    row.UpdateValidationStatus();
+                }
+
+                foreach (var cell in row.Cells.Values.Where(c => !_columnService.IsSpecialColumn(c.ColumnName)))
+                {
+                    cell.ValueChanged += async (s, e) => await OnCellValueChangedRealTime(row, cell);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error validating row after loading");
+            }
+        }
+
+        private async Task OnCellValueChangedRealTime(DataGridRowModel row, DataGridCellModel cell)
+        {
+            try
+            {
+                if (row.IsEmpty)
+                {
+                    cell.SetValidationErrors(new List<string>());
+                    row.UpdateValidationStatus();
+                    return;
+                }
+
+                await _validationService.ValidateCellAsync(cell, row);
                 row.UpdateValidationStatus();
             }
             catch (Exception ex)
             {
-                OnErrorOccurred(new ComponentErrorEventArgs(ex, "OnCellValueChanged"));
+                OnErrorOccurred(new ComponentErrorEventArgs(ex, "OnCellValueChangedRealTime"));
             }
         }
 
@@ -424,6 +559,10 @@ namespace Components.AdvancedDataGrid.ViewModels
         {
             try
             {
+                if (!_isInitialized) return;
+
+                _logger.LogDebug("Clearing all data");
+
                 foreach (var row in Rows)
                 {
                     foreach (var cell in row.Cells.Values.Where(c => !_columnService.IsSpecialColumn(c.ColumnName)))
@@ -432,9 +571,12 @@ namespace Components.AdvancedDataGrid.ViewModels
                         cell.SetValidationErrors(new List<string>());
                     }
                 }
+
+                _logger.LogInformation("All data cleared");
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error clearing all data");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "ClearAllDataAsync"));
             }
         }
@@ -443,20 +585,24 @@ namespace Components.AdvancedDataGrid.ViewModels
         {
             try
             {
+                _logger.LogDebug("Removing empty rows");
+
                 var dataRows = Rows.Where(r => !r.IsEmpty).ToList();
                 var emptyRowsNeeded = Math.Max(0, 50 - dataRows.Count);
 
                 Rows.Clear();
                 Rows.AddRange(dataRows);
 
-                // Add empty rows to maintain minimum count
                 for (int i = 0; i < emptyRowsNeeded; i++)
                 {
-                    Rows.Add(CreateEmptyRow());
+                    Rows.Add(CreateEmptyRowWithRealTimeValidation());
                 }
+
+                _logger.LogInformation("Empty rows removed, {DataRowCount} data rows kept", dataRows.Count);
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error removing empty rows");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "RemoveEmptyRowsAsync"));
             }
         }
@@ -465,21 +611,17 @@ namespace Components.AdvancedDataGrid.ViewModels
         {
             try
             {
-                // Získaj aktuálnu bunku z navigation service
                 var currentCell = _navigationService.CurrentCell;
                 if (currentCell != null)
                 {
                     var data = currentCell.Value?.ToString() ?? "";
                     await _clipboardService.SetClipboardDataAsync(data);
-                    System.Diagnostics.Debug.WriteLine($"Copied to clipboard: '{data}'");
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine("No current cell to copy");
+                    _logger.LogDebug("Copied cell data to clipboard");
                 }
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error copying selected cells");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "CopySelectedCellsAsync"));
             }
         }
@@ -488,23 +630,28 @@ namespace Components.AdvancedDataGrid.ViewModels
         {
             try
             {
+                if (!_isInitialized) return;
+
                 var clipboardData = await _clipboardService.GetClipboardDataAsync();
-                if (string.IsNullOrEmpty(clipboardData))
-                    return;
+                if (string.IsNullOrEmpty(clipboardData)) return;
 
                 var parsedData = _clipboardService.ParseFromExcelFormat(clipboardData);
-
-                // Aplikuj dáta začínajúc od aktuálnej bunky
                 var startRowIndex = _navigationService.CurrentRowIndex;
                 var startColumnIndex = _navigationService.CurrentColumnIndex;
 
                 if (startRowIndex >= 0 && startColumnIndex >= 0)
                 {
-                    await PasteDataAtPositionAsync(parsedData, startRowIndex, startColumnIndex);
+                    var editableColumns = Columns.Where(c => !c.IsSpecialColumn).ToList();
+                    if (startColumnIndex < editableColumns.Count)
+                    {
+                        await PasteDataAtPositionAsync(parsedData, startRowIndex, startColumnIndex);
+                        _logger.LogDebug("Pasted data from clipboard at position [{Row},{Col}]", startRowIndex, startColumnIndex);
+                    }
                 }
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error pasting from clipboard");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "PasteFromClipboardAsync"));
             }
         }
@@ -521,34 +668,30 @@ namespace Components.AdvancedDataGrid.ViewModels
                 {
                     int targetRowIndex = startRowIndex + i;
 
-                    // Pridaj nové riadky ak je potreba
                     while (targetRowIndex >= Rows.Count)
                     {
-                        Rows.Add(CreateEmptyRow());
+                        Rows.Add(CreateEmptyRowWithRealTimeValidation());
                     }
 
                     for (int j = 0; j < dataCols; j++)
                     {
                         int targetColumnIndex = startColumnIndex + j;
-
-                        if (targetColumnIndex >= editableColumns.Count)
-                            break; // Presahuje počet stĺpcov
+                        if (targetColumnIndex >= editableColumns.Count) break;
 
                         var columnName = editableColumns[targetColumnIndex].Name;
                         var targetRow = Rows[targetRowIndex];
 
-                        if (targetRow.Cells.ContainsKey(columnName))
+                        if (!_columnService.IsSpecialColumn(columnName) &&
+                            targetRow.Cells.ContainsKey(columnName))
                         {
                             targetRow.SetValue(columnName, data[i, j]);
                         }
                     }
                 }
-
-                // Validuj vložené dáta
-                await ValidateAllRowsAsync();
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error pasting data at position");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "PasteDataAtPositionAsync"));
             }
         }
@@ -559,68 +702,91 @@ namespace Components.AdvancedDataGrid.ViewModels
             {
                 if (row != null && Rows.Contains(row))
                 {
-                    // Vymaž obsah riadku
                     foreach (var cell in row.Cells.Values.Where(c => !_columnService.IsSpecialColumn(c.ColumnName)))
                     {
                         cell.Value = null;
                         cell.SetValidationErrors(new List<string>());
                     }
 
-                    // Zoradi riadky - prázdne na koniec
                     var dataRows = Rows.Where(r => !r.IsEmpty).ToList();
                     var emptyRows = Rows.Where(r => r.IsEmpty).ToList();
 
                     Rows.Clear();
                     Rows.AddRange(dataRows);
                     Rows.AddRange(emptyRows);
+
+                    _logger.LogDebug("Row deleted");
                 }
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error deleting row");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "DeleteRow"));
             }
         }
 
-        // Event Handlers
+        private DataTable ConvertToDataTable(List<Dictionary<string, object>> data)
+        {
+            var dataTable = new DataTable();
+
+            if (data?.Count > 0)
+            {
+                foreach (var key in data[0].Keys)
+                {
+                    dataTable.Columns.Add(key, typeof(object));
+                }
+
+                foreach (var row in data)
+                {
+                    var dataRow = dataTable.NewRow();
+                    foreach (var kvp in row)
+                    {
+                        dataRow[kvp.Key] = kvp.Value ?? DBNull.Value;
+                    }
+                    dataTable.Rows.Add(dataRow);
+                }
+            }
+
+            return dataTable;
+        }
+
+        #endregion
+
+        #region Event Handlers
+
         private void OnDataChanged(object? sender, DataChangeEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine($"Data changed: {e.ChangeType}");
+            _logger.LogTrace("Data changed: {ChangeType}", e.ChangeType);
         }
 
         private void OnValidationCompleted(object? sender, ValidationCompletedEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine($"Validation completed for row. Is valid: {e.IsValid}");
+            _logger.LogTrace("Validation completed for row. Is valid: {IsValid}", e.IsValid);
         }
 
-        private void OnCellChanged(object? sender, CellNavigationEventArgs e)
-        {
-            // Update mirror editor
-            MirrorEditor?.SetCurrentCell(e.NewCell);
-            System.Diagnostics.Debug.WriteLine($"Cell changed from [{e.OldRowIndex},{e.OldColumnIndex}] to [{e.NewRowIndex},{e.NewColumnIndex}]");
-        }
-
-        // Separate error handlers for better debugging:
         private void OnDataServiceErrorOccurred(object? sender, ComponentErrorEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine($"DataService error: {e.Operation} - {e.Exception.Message}");
+            _logger.LogError(e.Exception, "DataService error: {Operation}", e.Operation);
             OnErrorOccurred(e);
         }
 
         private void OnValidationServiceErrorOccurred(object? sender, ComponentErrorEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine($"ValidationService error: {e.Operation} - {e.Exception.Message}");
+            _logger.LogError(e.Exception, "ValidationService error: {Operation}", e.Operation);
             OnErrorOccurred(e);
         }
 
         private void OnNavigationServiceErrorOccurred(object? sender, ComponentErrorEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine($"NavigationService error: {e.Operation} - {e.Exception.Message}");
+            _logger.LogError(e.Exception, "NavigationService error: {Operation}", e.Operation);
             OnErrorOccurred(e);
         }
 
-        // Events
-        public event EventHandler<ComponentErrorEventArgs>? ErrorOccurred;
+        #endregion
 
+        #region Events & Property Changed
+
+        public event EventHandler<ComponentErrorEventArgs>? ErrorOccurred;
         public event PropertyChangedEventHandler? PropertyChanged;
 
         protected virtual void OnErrorOccurred(ComponentErrorEventArgs e)
@@ -642,5 +808,7 @@ namespace Components.AdvancedDataGrid.ViewModels
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
+
+        #endregion
     }
 }

@@ -1,10 +1,10 @@
-﻿// Converters/CellValidationConverter.cs
+﻿// RpaWpfComponents/AdvancedDataGrid/Converters/CellValidationConverter.cs
+using RpaWpfComponents.AdvancedDataGrid.Models;
 using System;
 using System.Globalization;
 using System.Windows.Data;
-using Components.AdvancedDataGrid.Models;
 
-namespace Components.AdvancedDataGrid.Converters
+namespace RpaWpfComponents.AdvancedDataGrid.Converters
 {
     public class CellValidationConverter : IMultiValueConverter
     {

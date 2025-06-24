@@ -1,0 +1,138 @@
+﻿<!-- ============================================ -->
+<!-- RpaWpfComponents/SmartListBox/Views/SmartListBoxView.xaml -->
+<!-- ============================================ -->
+<UserControl x:Class="RpaWpfComponents.SmartListBox.Views.SmartListBoxView"
+             x:ClassModifier="internal"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:converters="clr-namespace:RpaWpfComponents.SmartListBox.Converters"
+             mc:Ignorable="d"
+             d:DesignHeight="450" d:DesignWidth="300">
+    <UserControl.Resources>
+        <!-- Data Template pre SmartListBoxItem -->
+        <DataTemplate x:Key="SmartListBoxItemTemplate">
+            <Border Background="{Binding IsSelected, Converter={StaticResource SelectedBackgroundConverter}}"
+                    BorderBrush="{Binding IsSelected, Converter={StaticResource SelectedBorderConverter}}"
+                    BorderThickness="1"
+                    Padding="8,4"
+                    Margin="1"
+                    CornerRadius="2">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <!-- Display Text -->
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding DisplayText}"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding DisplayText}" />
+                    <!-- Data Type Icon -->
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding DataType, Converter={StaticResource DataTypeToIconConverter}}"
+                               FontFamily="Segoe UI Symbol"
+                               FontSize="12"
+                               Foreground="Gray"
+                               Margin="4,0,0,0"
+                               VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+        </DataTemplate>
+        <!-- Converters -->
+        <converters:SelectedBackgroundConverter x:Key="SelectedBackgroundConverter" />
+        <converters:SelectedBorderConverter x:Key="SelectedBorderConverter" />
+        <converters:DataTypeToIconConverter x:Key="DataTypeToIconConverter" />
+        <converters:SelectedCountConverter x:Key="SelectedCountConverter" />
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <!-- Header -->
+        <Border Grid.Row="0"
+                Background="#F0F0F0"
+                BorderBrush="#D0D0D0"
+                BorderThickness="0,0,0,1"
+                Padding="8,4">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Text="{Binding Items.Count, StringFormat='Položky: {0}'}"
+                           VerticalAlignment="Center"
+                           FontWeight="SemiBold" />
+                <Button Grid.Column="1"
+                        Content="Zrušiť výber"
+                        Command="{Binding ClearSelectionCommand}"
+                        Padding="8,2"
+                        FontSize="11" />
+            </Grid>
+        </Border>
+        <!-- Main ListBox -->
+        <ListBox Grid.Row="1"
+                 Name="MainListBox"
+                 ItemsSource="{Binding Items}"
+                 ItemTemplate="{StaticResource SmartListBoxItemTemplate}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                 SelectionMode="Extended"
+                 BorderThickness="0">
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Margin" Value="0" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListBoxItem">
+                                <ContentPresenter>
+                                    <ContentPresenter.InputBindings>
+                                        <MouseBinding MouseAction="LeftClick"
+                                                      Command="{Binding DataContext.ItemClickCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                      CommandParameter="{Binding}" />
+                                    </ContentPresenter.InputBindings>
+                                </ContentPresenter>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </ListBox.ItemContainerStyle>
+        </ListBox>
+        <!-- Footer -->
+        <Border Grid.Row="2"
+                Background="#F8F8F8"
+                BorderBrush="#D0D0D0"
+                BorderThickness="0,1,0,0"
+                Padding="8,4">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Foreground="Gray">
+                    <TextBlock.Text>
+                        <MultiBinding StringFormat="Vybrané: {0} z {1}">
+                            <Binding Path="Items" Converter="{StaticResource SelectedCountConverter}" />
+                            <Binding Path="Items.Count" />
+                        </MultiBinding>
+                    </TextBlock.Text>
+                </TextBlock>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding SelectionMode, StringFormat='Režim: {0}'}"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Foreground="Gray" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

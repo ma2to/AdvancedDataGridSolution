@@ -1,13 +1,13 @@
 ﻿// ===========================================
-// Helpers/DataHelper.cs
+// RpaWpfComponents/AdvancedDataGrid/Helpers/DataHelper.cs
 // ===========================================
+using RpaWpfComponents.AdvancedDataGrid.Models;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using Components.AdvancedDataGrid.Models;
 
-namespace Components.AdvancedDataGrid.Helpers
+namespace RpaWpfComponents.AdvancedDataGrid.Helpers
 {
     public static class DataHelper
     {
@@ -16,13 +16,11 @@ namespace Components.AdvancedDataGrid.Helpers
             var dataTable = new DataTable();
             var dataColumns = columns.Where(c => !c.IsSpecialColumn).ToList();
 
-            // Vytvor stĺpce
             foreach (var column in dataColumns)
             {
                 dataTable.Columns.Add(column.Name, Nullable.GetUnderlyingType(column.DataType) ?? column.DataType);
             }
 
-            // Pridaj dáta
             foreach (var row in rows.Where(r => !r.IsEmpty))
             {
                 var dataRow = dataTable.NewRow();

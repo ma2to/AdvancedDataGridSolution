@@ -1,0 +1,30 @@
+﻿// RpaWpfComponents/AdvancedDataGrid/Models/ValidationResultModel.cs
+using System.Collections.Generic;
+
+namespace RpaWpfComponents.AdvancedDataGrid.Models
+{
+    public class ValidationResultModel
+    {
+        public bool IsValid { get; set; }
+        public List<string> ErrorMessages { get; set; } = new List<string>();
+        public string ColumnName { get; set; } = string.Empty;
+        public int RowIndex { get; set; }
+
+        public ValidationResultModel(bool isValid = true)
+        {
+            IsValid = isValid;
+        }
+
+        public static ValidationResultModel Success() => new ValidationResultModel(true);
+
+        public static ValidationResultModel Failure(string errorMessage)
+        {
+            return new ValidationResultModel(false) { ErrorMessages = new List<string> { errorMessage ?? string.Empty } };
+        }
+
+        public static ValidationResultModel Failure(List<string> errorMessages)
+        {
+            return new ValidationResultModel(false) { ErrorMessages = errorMessages ?? new List<string>() };
+        }
+    }
+}

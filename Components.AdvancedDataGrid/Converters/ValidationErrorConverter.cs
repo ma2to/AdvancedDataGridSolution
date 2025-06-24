@@ -1,5 +1,5 @@
 ﻿// ===========================================
-// Converters/ValidationErrorConverter.cs
+// RpaWpfComponents/AdvancedDataGrid/Converters/ValidationErrorConverter.cs
 // ===========================================
 using System;
 using System.Globalization;
@@ -7,7 +7,7 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 
-namespace Components.AdvancedDataGrid.Converters
+namespace RpaWpfComponents.AdvancedDataGrid.Converters
 {
     public class ValidationErrorConverter : IValueConverter
     {

@@ -1,18 +1,16 @@
-﻿// ===========================================
-// Configuration/ServiceCollectionExtensions.cs
-// ===========================================
+﻿// RpaWpfComponents/AdvancedDataGrid/Configuration/ServiceCollectionExtensions.cs
+using RpaWpfComponents.AdvancedDataGrid.Services.Implementation;
+using RpaWpfComponents.AdvancedDataGrid.Services.Interfaces;
+using RpaWpfComponents.AdvancedDataGrid.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
-using Components.AdvancedDataGrid.Services.Interfaces;
-using Components.AdvancedDataGrid.Services.Implementation;
-using Components.AdvancedDataGrid.ViewModels;
 
-namespace Components.AdvancedDataGrid.Configuration
+
+namespace RpaWpfComponents.AdvancedDataGrid.Configuration
 {
     public static class ServiceCollectionExtensions
     {
         public static IServiceCollection AddAdvancedDataGrid(this IServiceCollection services)
         {
-            // Register services
             services.AddScoped<IDataService, DataService>();
             services.AddScoped<IValidationService, ValidationService>();
             services.AddScoped<IClipboardService, ClipboardService>();
@@ -20,9 +18,7 @@ namespace Components.AdvancedDataGrid.Configuration
             services.AddScoped<IExportService, ExportService>();
             services.AddScoped<INavigationService, NavigationService>();
 
-            // Register ViewModels
             services.AddTransient<AdvancedDataGridViewModel>();
-            services.AddTransient<MirrorEditorViewModel>();
 
             return services;
         }

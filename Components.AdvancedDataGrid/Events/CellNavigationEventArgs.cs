@@ -1,11 +1,12 @@
 ﻿// ===========================================
-// Events/CellNavigationEventArgs.cs - NOVÝ SÚBOR
+// RpaWpfComponents/AdvancedDataGrid/Events/CellNavigationEventArgs.cs
 // ===========================================
 
-using System;
-using Components.AdvancedDataGrid.Models;
+using RpaWpfComponents.AdvancedDataGrid.Models;
 
-namespace Components.AdvancedDataGrid.Events
+using System;
+
+namespace RpaWpfComponents.AdvancedDataGrid.Events
 {
     public class CellNavigationEventArgs : EventArgs
     {

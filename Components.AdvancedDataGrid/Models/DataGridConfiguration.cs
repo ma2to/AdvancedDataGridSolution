@@ -1,9 +1,10 @@
 ﻿// ===========================================
-// Models/DataGridConfiguration.cs
+// RpaWpfComponents/AdvancedDataGrid/Models/DataGridConfiguration.cs
 // ===========================================
+using RpaWpfComponents.AdvancedDataGrid.Models;
 using System.Collections.Generic;
 
-namespace Components.AdvancedDataGrid.Models
+namespace RpaWpfComponents.AdvancedDataGrid.Models
 {
     public class DataGridConfiguration
     {

@@ -1,68 +1,88 @@
-﻿// ===========================================
-// Services/Implementation/DataService.cs
-// ===========================================
-using Components.AdvancedDataGrid.Events;
-using Components.AdvancedDataGrid.Helpers;
-using Components.AdvancedDataGrid.Models;
-using Components.AdvancedDataGrid.Services.Interfaces;
+﻿// RpaWpfComponents/AdvancedDataGrid/Services/Implementation/DataService.cs
+using RpaWpfComponents.AdvancedDataGrid.Events;
+using RpaWpfComponents.AdvancedDataGrid.Helpers;
+using RpaWpfComponents.AdvancedDataGrid.Models;
+using RpaWpfComponents.AdvancedDataGrid.Services.Interfaces;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Components.AdvancedDataGrid.Services.Implementation
+namespace RpaWpfComponents.AdvancedDataGrid.Services.Implementation
 {
     public class DataService : IDataService
     {
+        private readonly ILogger<DataService> _logger;
         private List<DataGridRowModel> _rows = new();
         private List<ColumnDefinitionModel> _columns = new();
 
-        // OPRAVENÉ - používa DataChangeEventArgs namiesto DataChangedEventArgs
+        public DataService(ILogger<DataService>? logger = null)
+        {
+            _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<DataService>.Instance;
+        }
+
         public event EventHandler<DataChangeEventArgs>? DataChanged;
         public event EventHandler<ComponentErrorEventArgs>? ErrorOccurred;
 
         public void Initialize(List<ColumnDefinitionModel> columns)
         {
-            _columns = columns ?? throw new ArgumentNullException(nameof(columns));
+            try
+            {
+                _columns = columns ?? throw new ArgumentNullException(nameof(columns));
+                _logger.LogInformation("DataService initialized with {ColumnCount} columns", _columns.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error initializing DataService");
+                throw;
+            }
         }
 
         public async Task LoadDataAsync(DataTable dataTable)
         {
             try
             {
+                _logger.LogInformation("Loading data from DataTable with {RowCount} rows", dataTable?.Rows.Count ?? 0);
+
                 await Task.Run(() =>
                 {
                     _rows.Clear();
 
-                    foreach (DataRow dataRow in dataTable.Rows)
+                    if (dataTable != null)
                     {
-                        var gridRow = new DataGridRowModel();
-
-                        foreach (var column in _columns)
+                        foreach (DataRow dataRow in dataTable.Rows)
                         {
-                            var cell = new DataGridCellModel
-                            {
-                                ColumnName = column.Name,
-                                DataType = column.DataType
-                            };
+                            var gridRow = new DataGridRowModel();
 
-                            if (dataTable.Columns.Contains(column.Name))
+                            foreach (var column in _columns)
                             {
-                                cell.Value = dataRow[column.Name];
+                                var cell = new DataGridCellModel
+                                {
+                                    ColumnName = column.Name,
+                                    DataType = column.DataType
+                                };
+
+                                if (dataTable.Columns.Contains(column.Name))
+                                {
+                                    cell.Value = dataRow[column.Name];
+                                }
+
+                                gridRow.AddCell(column.Name, cell);
                             }
 
-                            gridRow.AddCell(column.Name, cell);
+                            _rows.Add(gridRow);
                         }
-
-                        _rows.Add(gridRow);
                     }
                 });
 
+                _logger.LogInformation("Successfully loaded {RowCount} rows from DataTable", _rows.Count);
                 OnDataChanged(new DataChangeEventArgs { ChangeType = DataChangeType.LoadData });
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error loading data from DataTable");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "LoadDataAsync"));
             }
         }
@@ -71,38 +91,45 @@ namespace Components.AdvancedDataGrid.Services.Implementation
         {
             try
             {
+                _logger.LogInformation("Loading data from dictionary list with {RowCount} rows", data?.Count ?? 0);
+
                 await Task.Run(() =>
                 {
                     _rows.Clear();
 
-                    foreach (var dataRow in data)
+                    if (data != null)
                     {
-                        var gridRow = new DataGridRowModel();
-
-                        foreach (var column in _columns)
+                        foreach (var dataRow in data)
                         {
-                            var cell = new DataGridCellModel
-                            {
-                                ColumnName = column.Name,
-                                DataType = column.DataType
-                            };
+                            var gridRow = new DataGridRowModel();
 
-                            if (dataRow.ContainsKey(column.Name))
+                            foreach (var column in _columns)
                             {
-                                cell.Value = dataRow[column.Name];
+                                var cell = new DataGridCellModel
+                                {
+                                    ColumnName = column.Name,
+                                    DataType = column.DataType
+                                };
+
+                                if (dataRow.ContainsKey(column.Name))
+                                {
+                                    cell.Value = dataRow[column.Name];
+                                }
+
+                                gridRow.AddCell(column.Name, cell);
                             }
 
-                            gridRow.AddCell(column.Name, cell);
+                            _rows.Add(gridRow);
                         }
-
-                        _rows.Add(gridRow);
                     }
                 });
 
+                _logger.LogInformation("Successfully loaded {RowCount} rows from dictionary list", _rows.Count);
                 OnDataChanged(new DataChangeEventArgs { ChangeType = DataChangeType.LoadData });
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error loading data from dictionary list");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "LoadDataAsync"));
             }
         }
@@ -111,17 +138,17 @@ namespace Components.AdvancedDataGrid.Services.Implementation
         {
             try
             {
+                _logger.LogDebug("Exporting data to DataTable");
+
                 return await Task.Run(() =>
                 {
                     var dataTable = new DataTable();
 
-                    // Vytvor stĺpce
                     foreach (var column in _columns.Where(c => !c.IsSpecialColumn))
                     {
                         dataTable.Columns.Add(column.Name, column.DataType);
                     }
 
-                    // Pridaj riadky
                     foreach (var row in _rows.Where(r => !r.IsEmpty))
                     {
                         var dataRow = dataTable.NewRow();
@@ -132,11 +159,13 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                         dataTable.Rows.Add(dataRow);
                     }
 
+                    _logger.LogInformation("Exported {RowCount} rows to DataTable", dataTable.Rows.Count);
                     return dataTable;
                 });
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error exporting data to DataTable");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "ExportDataAsync"));
                 return new DataTable();
             }
@@ -146,6 +175,8 @@ namespace Components.AdvancedDataGrid.Services.Implementation
         {
             try
             {
+                _logger.LogInformation("Clearing all data");
+
                 await Task.Run(() =>
                 {
                     foreach (var row in _rows)
@@ -158,10 +189,12 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                     }
                 });
 
+                _logger.LogInformation("Successfully cleared all data");
                 OnDataChanged(new DataChangeEventArgs { ChangeType = DataChangeType.ClearData });
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error clearing all data");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "ClearAllDataAsync"));
             }
         }
@@ -170,11 +203,12 @@ namespace Components.AdvancedDataGrid.Services.Implementation
         {
             try
             {
-                // This will be handled by ValidationService
+                _logger.LogDebug("Validating all rows");
                 return await Task.FromResult(true);
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error validating all rows");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "ValidateAllRowsAsync"));
                 return false;
             }
@@ -184,6 +218,8 @@ namespace Components.AdvancedDataGrid.Services.Implementation
         {
             try
             {
+                _logger.LogDebug("Removing rows by condition for column: {ColumnName}", columnName);
+
                 await Task.Run(() =>
                 {
                     var rowsToRemove = new List<DataGridRowModel>();
@@ -202,14 +238,15 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                         _rows.Remove(row);
                     }
 
-                    // Zoradi riadky - prázdne na koniec
                     _rows = _rows.OrderBy(r => r.IsEmpty).ToList();
                 });
 
+                _logger.LogInformation("Removed rows by condition for column: {ColumnName}", columnName);
                 OnDataChanged(new DataChangeEventArgs { ChangeType = DataChangeType.RemoveRows });
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error removing rows by condition for column: {ColumnName}", columnName);
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "RemoveRowsByConditionAsync"));
             }
         }
@@ -218,6 +255,8 @@ namespace Components.AdvancedDataGrid.Services.Implementation
         {
             try
             {
+                _logger.LogDebug("Removing empty rows");
+
                 await Task.Run(() =>
                 {
                     var dataRows = _rows.Where(r => !r.IsEmpty).ToList();
@@ -225,7 +264,6 @@ namespace Components.AdvancedDataGrid.Services.Implementation
 
                     _rows = dataRows;
 
-                    // Pridaj prázdne riadky na koniec
                     for (int i = 0; i < emptyRowsCount; i++)
                     {
                         var emptyRow = CreateEmptyRow();
@@ -233,10 +271,12 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                     }
                 });
 
+                _logger.LogInformation("Removed empty rows");
                 OnDataChanged(new DataChangeEventArgs { ChangeType = DataChangeType.RemoveEmptyRows });
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error removing empty rows");
                 OnErrorOccurred(new ComponentErrorEventArgs(ex, "RemoveEmptyRowsAsync"));
             }
         }

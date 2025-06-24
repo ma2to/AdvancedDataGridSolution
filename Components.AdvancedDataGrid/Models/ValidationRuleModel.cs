@@ -1,10 +1,9 @@
 ﻿// ===========================================
-// Models/ValidationRuleModel.cs
+// RpaWpfComponents/AdvancedDataGrid/Models/ValidationRuleModel.cs
 // ===========================================
 using System;
-using System.Windows.Controls;
 
-namespace Components.AdvancedDataGrid.Models
+namespace RpaWpfComponents.AdvancedDataGrid.Models
 {
     public class ValidationRuleModel
     {
@@ -12,7 +11,7 @@ namespace Components.AdvancedDataGrid.Models
         public Func<object, DataGridRowModel, bool> ValidationFunction { get; set; }
         public string ErrorMessage { get; set; }
         public Func<DataGridRowModel, bool> ApplyCondition { get; set; } = _ => true;
-        public int Priority { get; set; } = 0; // Vyššie číslo = vyššia priorita
+        public int Priority { get; set; } = 0;
         public string RuleName { get; set; }
 
         public ValidationRuleModel()
@@ -28,7 +27,7 @@ namespace Components.AdvancedDataGrid.Models
             }
             catch
             {
-                return true; // V prípade chyby aplikuj validáciu
+                return true;
             }
         }
 
@@ -43,7 +42,7 @@ namespace Components.AdvancedDataGrid.Models
             }
             catch
             {
-                return false; // V prípade chyby validácia failed
+                return false;
             }
         }
     }

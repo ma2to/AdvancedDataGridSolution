@@ -1,11 +1,11 @@
 ﻿// ===========================================
-// Helpers/ErrorHelper.cs
+// RpaWpfComponents/AdvancedDataGrid/Helpers/ErrorHelper.cs
 // ===========================================
 using System;
 using System.Text;
-using Components.AdvancedDataGrid.Events;
+using RpaWpfComponents.AdvancedDataGrid.Events;
 
-namespace Components.AdvancedDataGrid.Helpers
+namespace RpaWpfComponents.AdvancedDataGrid.Helpers
 {
     public static class ErrorHelper
     {

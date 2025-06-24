@@ -1,14 +1,24 @@
-﻿// Behaviors/KeyboardNavigationBehavior.cs - OPRAVENÝ
+﻿// RpaWpfComponents/AdvancedDataGrid/Behaviors/KeyboardNavigationBehavior.cs
+using RpaWpfComponents.AdvancedDataGrid.Models;
+using RpaWpfComponents.AdvancedDataGrid.Services.Interfaces;
+using Microsoft.Extensions.Logging;
+using Microsoft.Xaml.Behaviors;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using Microsoft.Xaml.Behaviors;
-using Components.AdvancedDataGrid.Services.Interfaces;
+using RpaWpfComponents.AdvancedDataGrid.Configuration;
 
-namespace Components.AdvancedDataGrid.Behaviors
+namespace RpaWpfComponents.AdvancedDataGrid.Behaviors
 {
     public class KeyboardNavigationBehavior : Behavior<DataGrid>
     {
+        private readonly ILogger<KeyboardNavigationBehavior> _logger;
+
+        public KeyboardNavigationBehavior()
+        {
+            _logger = LoggerFactory.CreateLogger<KeyboardNavigationBehavior>();
+        }
+
         public static readonly DependencyProperty NavigationServiceProperty =
             DependencyProperty.Register(nameof(NavigationService), typeof(INavigationService), typeof(KeyboardNavigationBehavior));
 
@@ -22,14 +32,45 @@ namespace Components.AdvancedDataGrid.Behaviors
         {
             base.OnAttached();
             AssociatedObject.PreviewKeyDown += OnPreviewKeyDown;
-            AssociatedObject.CellEditEnding += OnCellEditEnding;
+            AssociatedObject.BeginningEdit += OnBeginningEdit;
+            _logger.LogDebug("KeyboardNavigationBehavior attached to DataGrid");
         }
 
         protected override void OnDetaching()
         {
             base.OnDetaching();
             AssociatedObject.PreviewKeyDown -= OnPreviewKeyDown;
-            AssociatedObject.CellEditEnding -= OnCellEditEnding;
+            AssociatedObject.BeginningEdit -= OnBeginningEdit;
+            _logger.LogDebug("KeyboardNavigationBehavior detached from DataGrid");
+        }
+
+        private void OnBeginningEdit(object sender, DataGridBeginningEditEventArgs e)
+        {
+            try
+            {
+                if (e.Row.Item is DataGridRowModel row &&
+                    e.Column.Header is string columnName)
+                {
+                    var cell = row.GetCell(columnName);
+                    if (cell != null)
+                    {
+                        if (cell.OriginalValue == null)
+                        {
+                            cell.StartEditing();
+                            _logger.LogDebug("Started editing cell: {ColumnName} = '{Value}'", columnName, cell.Value);
+                        }
+                        else
+                        {
+                            cell.IsEditing = true;
+                            _logger.LogDebug("Continuing edit for cell: {ColumnName}", columnName);
+                        }
+                    }
+                }
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Error in OnBeginningEdit for column");
+            }
         }
 
         private void OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -57,33 +98,7 @@ namespace Components.AdvancedDataGrid.Behaviors
             }
             catch (System.Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"KeyboardNavigationBehavior error: {ex.Message}");
-            }
-        }
-
-        private void OnCellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
-        {
-            try
-            {
-                // If edit was cancelled, don't commit changes
-                if (e.EditAction == DataGridEditAction.Cancel)
-                {
-                    return;
-                }
-
-                // Move to next cell after commit
-                if (NavigationService != null && e.EditAction == DataGridEditAction.Commit)
-                {
-                    // Small delay to allow commit to complete
-                    Dispatcher.BeginInvoke(new System.Action(() =>
-                    {
-                        NavigationService.MoveToNextCell();
-                    }), System.Windows.Threading.DispatcherPriority.Background);
-                }
-            }
-            catch (System.Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"KeyboardNavigationBehavior CellEditEnding error: {ex.Message}");
+                _logger.LogError(ex, "Error in KeyboardNavigationBehavior key handling for key: {Key}", e.Key);
             }
         }
 
@@ -91,25 +106,29 @@ namespace Components.AdvancedDataGrid.Behaviors
         {
             try
             {
-                // Commit current edit first
                 if (AssociatedObject.IsInEditingMode())
                 {
+                    CommitCurrentCellChanges();
                     AssociatedObject.CommitEdit(DataGridEditingUnit.Cell, true);
                 }
 
-                if (NavigationService != null)
+                Dispatcher.BeginInvoke(new System.Action(() =>
                 {
-                    if (Keyboard.Modifiers == ModifierKeys.Shift)
-                        NavigationService.MoveToPreviousCell();
-                    else
-                        NavigationService.MoveToNextCell();
-                }
+                    if (NavigationService != null)
+                    {
+                        if (Keyboard.Modifiers == ModifierKeys.Shift)
+                            NavigationService.MoveToPreviousCell();
+                        else
+                            NavigationService.MoveToNextCell();
+                    }
+                }), System.Windows.Threading.DispatcherPriority.Background);
 
                 e.Handled = true;
+                _logger.LogDebug("TAB navigation executed with commit");
             }
             catch (System.Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"KeyboardNavigationBehavior HandleTabKey error: {ex.Message}");
+                _logger.LogError(ex, "Error in HandleTabKey");
             }
         }
 
@@ -119,16 +138,14 @@ namespace Components.AdvancedDataGrid.Behaviors
             {
                 if (Keyboard.Modifiers == ModifierKeys.Shift)
                 {
-                    // Shift+Enter = nový riadok v TextBoxe (default behavior)
                     return;
                 }
 
-                // Enter = commit current edit and move to next row
                 if (AssociatedObject.IsInEditingMode())
                 {
+                    CommitCurrentCellChanges();
                     AssociatedObject.CommitEdit(DataGridEditingUnit.Cell, true);
 
-                    // Move to next row, same column
                     if (NavigationService != null)
                     {
                         Dispatcher.BeginInvoke(new System.Action(() =>
@@ -139,15 +156,15 @@ namespace Components.AdvancedDataGrid.Behaviors
                 }
                 else
                 {
-                    // Start editing current cell
                     AssociatedObject.BeginEdit();
                 }
 
                 e.Handled = true;
+                _logger.LogDebug("ENTER navigation executed");
             }
             catch (System.Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"KeyboardNavigationBehavior HandleEnterKey error: {ex.Message}");
+                _logger.LogError(ex, "Error in HandleEnterKey");
             }
         }
 
@@ -155,17 +172,46 @@ namespace Components.AdvancedDataGrid.Behaviors
         {
             try
             {
-                // ESC = cancel current edit - OPRAVENÉ
-                if (AssociatedObject.IsInEditingMode())
+                if (AssociatedObject.IsInEditingMode() && AssociatedObject.CurrentCell.IsValid)
                 {
-                    // Zruš edit a vráť pôvodnú hodnotu
-                    AssociatedObject.CancelEdit(DataGridEditingUnit.Cell);
+                    var currentCell = AssociatedObject.CurrentCell;
+
+                    if (currentCell.Item is DataGridRowModel row &&
+                        currentCell.Column?.Header is string columnName)
+                    {
+                        var cell = row.GetCell(columnName);
+                        if (cell != null)
+                        {
+                            _logger.LogDebug("ESC - canceling editing for {ColumnName}", columnName);
+
+                            cell.CancelEditing();
+                            AssociatedObject.CancelEdit(DataGridEditingUnit.Cell);
+
+                            Dispatcher.BeginInvoke(new System.Action(() =>
+                            {
+                                try
+                                {
+                                    AssociatedObject.Focus();
+                                    AssociatedObject.CurrentCell = currentCell;
+                                    AssociatedObject.SelectedCells.Clear();
+                                    AssociatedObject.SelectedCells.Add(currentCell);
+
+                                    _logger.LogDebug("ESC completed - changes cancelled for {ColumnName}", columnName);
+                                }
+                                catch (System.Exception ex)
+                                {
+                                    _logger.LogError(ex, "Error in ESC post-processing");
+                                }
+                            }), System.Windows.Threading.DispatcherPriority.Input);
+                        }
+                    }
+
                     e.Handled = true;
                 }
             }
             catch (System.Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"KeyboardNavigationBehavior HandleEscapeKey error: {ex.Message}");
+                _logger.LogError(ex, "Error in HandleEscapeKey");
             }
         }
 
@@ -173,7 +219,6 @@ namespace Components.AdvancedDataGrid.Behaviors
         {
             try
             {
-                // Delete = vymaž obsah aktívnej bunky
                 if (AssociatedObject.CurrentCell.IsValid &&
                     AssociatedObject.CurrentCell.Item != null &&
                     AssociatedObject.CurrentCell.Column != null &&
@@ -182,18 +227,43 @@ namespace Components.AdvancedDataGrid.Behaviors
                     var currentItem = AssociatedObject.CurrentCell.Item;
                     var currentColumn = AssociatedObject.CurrentCell.Column;
 
-                    if (currentItem is Components.AdvancedDataGrid.Models.DataGridRowModel row &&
+                    if (currentItem is DataGridRowModel row &&
                         currentColumn.Header is string columnName &&
                         !IsSpecialColumn(columnName))
                     {
-                        row.SetValue(columnName, null);
-                        e.Handled = true;
+                        var cell = row.GetCell(columnName);
+                        if (cell != null)
+                        {
+                            cell.StartEditing();
+                            row.SetValue(columnName, null);
+                            cell.CommitChanges();
+
+                            e.Handled = true;
+                            _logger.LogDebug("DELETE - cleared value in {ColumnName}", columnName);
+                        }
                     }
                 }
             }
             catch (System.Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"KeyboardNavigationBehavior HandleDeleteKey error: {ex.Message}");
+                _logger.LogError(ex, "Error in HandleDeleteKey");
+            }
+        }
+
+        private void HandleF2Key(KeyEventArgs e)
+        {
+            try
+            {
+                if (!AssociatedObject.IsInEditingMode())
+                {
+                    AssociatedObject.BeginEdit();
+                    e.Handled = true;
+                    _logger.LogDebug("F2 - started editing current cell");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Error in HandleF2Key");
             }
         }
 
@@ -202,25 +272,29 @@ namespace Components.AdvancedDataGrid.Behaviors
             return columnName == "DeleteAction" || columnName == "ValidAlerts";
         }
 
-        private void HandleF2Key(KeyEventArgs e)
+        private void CommitCurrentCellChanges()
         {
             try
             {
-                // F2 = start editing current cell or focus Mirror Editor
-                if (!AssociatedObject.IsInEditingMode())
+                if (AssociatedObject.CurrentCell.IsValid &&
+                    AssociatedObject.CurrentCell.Item is DataGridRowModel row &&
+                    AssociatedObject.CurrentCell.Column?.Header is string columnName)
                 {
-                    AssociatedObject.BeginEdit();
-                    e.Handled = true;
+                    var cell = row.GetCell(columnName);
+                    if (cell != null)
+                    {
+                        cell.CommitChanges();
+                        _logger.LogDebug("Committed changes for cell: {ColumnName}", columnName);
+                    }
                 }
             }
             catch (System.Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"KeyboardNavigationBehavior HandleF2Key error: {ex.Message}");
+                _logger.LogError(ex, "Error in CommitCurrentCellChanges");
             }
         }
     }
 
-    // Extension method to check if DataGrid is in editing mode
     public static class DataGridExtensions
     {
         public static bool IsInEditingMode(this DataGrid dataGrid)

@@ -1,9 +1,9 @@
 ﻿// ===========================================
-// Models/ValidationResultModel.cs
+// RpaWpfComponents/AdvancedDataGrid/Models/ValidationResultModel.cs
 // ===========================================
 using System.Collections.Generic;
 
-namespace Components.AdvancedDataGrid.Models
+namespace RpaWpfComponents.AdvancedDataGrid.Models
 {
     public class ValidationResultModel
     {

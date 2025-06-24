@@ -1,5 +1,5 @@
 ﻿// ===========================================
-// Converters/ErrorBorderConverter.cs
+// RpaWpfComponents/AdvancedDataGrid/Converters/ErrorBorderConverter.cs
 // ===========================================
 using System;
 using System.Globalization;
@@ -7,7 +7,7 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 
-namespace Components.AdvancedDataGrid.Converters
+namespace RpaWpfComponents.AdvancedDataGrid.Converters
 {
     public class ErrorBorderConverter : IValueConverter
     {

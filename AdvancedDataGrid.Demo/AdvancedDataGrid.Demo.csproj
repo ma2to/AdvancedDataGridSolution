@@ -8,13 +8,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Reference na váš komponenty -->
-    <ProjectReference Include="..\Components.AdvancedDataGrid\Components.AdvancedDataGrid.csproj" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.6" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.6" />
+    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.135" />
+    <PackageReference Include="RpaWpfComponents" Version="1.0.0" />
+  </ItemGroup>
 
-    <!-- Potrebné packages -->
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.39" />
+  <ItemGroup>
+    <!-- Reference na váš komponenty -->
+    <ProjectReference Include="..\RpaWpfComponents\RpaWpfComponents.csproj" />
+
+
   </ItemGroup>
 
 </Project>

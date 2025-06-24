@@ -1,0 +1,477 @@
+﻿// MainWindow.xaml.cs - UKÁŽKA POUŽITIA SmartListBox
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using RpaWpfComponents.SmartListBox;
+
+namespace YourApplication
+{
+    public partial class MainWindow : Window
+    {
+        private SmartListBoxControl _smartListBox;
+        private ILoggerFactory _loggerFactory;
+
+        public MainWindow()
+        {
+            InitializeComponent();
+            InitializeLogging();
+            InitializeSmartListBox();
+        }
+
+        private void InitializeLogging()
+        {
+            // Konfigurácia logovania
+            _loggerFactory = LoggerFactory.Create(builder =>
+            {
+                builder.AddConsole().AddDebug().SetMinimumLevel(LogLevel.Debug);
+            });
+
+            // Konfigurácia pre SmartListBox
+            Configuration.ConfigureLogging(_loggerFactory);
+            Configuration.SetDebugLogging(true);
+        }
+
+        private async void InitializeSmartListBox()
+        {
+            try
+            {
+                // Vytvor komponent
+                _smartListBox = new SmartListBoxControl();
+
+                // Subscribe na eventy
+                _smartListBox.ErrorOccurred += OnSmartListBoxError;
+                _smartListBox.SelectionChanged += OnSelectionChanged;
+
+                // Pridaj do UI
+                SmartListBoxContainer.Children.Add(_smartListBox);
+
+                System.Diagnostics.Debug.WriteLine("🚀 Inicializujem SmartListBox...");
+
+                // Ukážka rôznych typov dát
+                await LoadSampleData();
+
+                System.Diagnostics.Debug.WriteLine("✅ SmartListBox úspešne inicializovaný!");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Chyba pri inicializácii: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        #region Sample Data Loading
+
+        private async Task LoadSampleData()
+        {
+            try
+            {
+                // Vytvor rôzne typy sample dát
+                var sampleData = CreateSampleData();
+
+                System.Diagnostics.Debug.WriteLine($"📊 Načítavam {sampleData.Count} položiek...");
+
+                // Inicializuj s MultipleSelection režimom
+                await _smartListBox.Initialize(sampleData, _loggerFactory, SelectionMode.Multiple);
+
+                System.Diagnostics.Debug.WriteLine("✅ Sample dáta načítané");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Chyba pri načítavaní sample dát: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private List<object> CreateSampleData()
+        {
+            var data = new List<object>();
+
+            // Textové hodnoty
+            data.Add("Jednoduchý text");
+            data.Add("Ďalší textový prvok");
+            data.Add("Text s emoji 😀");
+
+            // Čísla
+            data.Add(42);
+            data.Add(3.14159);
+            data.Add(1000000);
+            data.Add(-273.15);
+
+            // Dátumy
+            data.Add(DateTime.Now);
+            data.Add(DateTime.Today);
+            data.Add(new DateTime(2024, 12, 25));
+
+            // Cesty k súborom
+            data.Add(@"C:\Users\User\Documents\document.pdf");
+            data.Add(@"C:\Temp\image.jpg");
+            data.Add(@"D:\Projects\MyApp\config.xml");
+            data.Add(@"/home/user/script.sh");
+
+            // Prázdne hodnoty
+            data.Add(null);
+            data.Add("");
+
+            // Objekty (budú konvertované na string)
+            data.Add(new { Name = "Test Object", Value = 123 });
+
+            return data;
+        }
+
+        #endregion
+
+        #region Event Handlers
+
+        private void OnSmartListBoxError(object sender, ComponentError e)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ SmartListBox Error: {e.Operation} - {e.Exception.Message}");
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                MessageBox.Show($"Chyba v SmartListBox: {e.Exception.Message}", "SmartListBox Error",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }));
+        }
+
+        private void OnSelectionChanged(object sender, SelectionChangedArgs e)
+        {
+            System.Diagnostics.Debug.WriteLine($"🔄 Selekcia sa zmenila:");
+            System.Diagnostics.Debug.WriteLine($"   - Vybrané: {e.SelectedItems.Count()}");
+            System.Diagnostics.Debug.WriteLine($"   - Pridané: {e.AddedItems.Count()}");
+            System.Diagnostics.Debug.WriteLine($"   - Odstránené: {e.RemovedItems.Count()}");
+            System.Diagnostics.Debug.WriteLine($"   - Režim: {e.SelectionMode}");
+
+            // Aktualizuj UI s informáciami o selekcii
+            UpdateSelectionInfo();
+        }
+
+        private void UpdateSelectionInfo()
+        {
+            try
+            {
+                var selectedItems = _smartListBox.GetSelectedItems().ToList();
+                var selectedText = string.Join(", ", selectedItems.Take(3).Select(item => item?.ToString() ?? "null"));
+                
+                if (selectedItems.Count > 3)
+                    selectedText += $" ... a {selectedItems.Count - 3} ďalších";
+
+                SelectionInfoLabel.Content = $"Vybrané ({selectedItems.Count}): {selectedText}";
+            }
+            catch (Exception ex)
+            {
+                SelectionInfoLabel.Content = $"Chyba: {ex.Message}";
+            }
+        }
+
+        #endregion
+
+        #region Button Event Handlers
+
+        private async void LoadTextDataButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var textData = new List<object>
+                {
+                    "Prvý textový prvok",
+                    "Druhý textový prvok", 
+                    "Tretí textový prvok",
+                    "Štvrtý textový prvok"
+                };
+
+                await _smartListBox.UpdateData(textData);
+                MessageBox.Show("Textové dáta načítané!", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Chyba: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void LoadNumberDataButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var numberData = new List<object> { 1, 10, 100, 1000, 10000, 3.14, -42, 0 };
+
+                await _smartListBox.UpdateData(numberData);
+                MessageBox.Show("Číselné dáta načítané!", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Chyba: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void LoadFilePathDataButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var fileData = new List<object>
+                {
+                    @"C:\Windows\System32\notepad.exe",
+                    @"C:\Program Files\App\config.json",
+                    @"D:\Photos\vacation.jpg",
+                    @"C:\Users\User\Desktop\document.pdf",
+                    @"/usr/bin/python3",
+                    @"/home/user/script.py"
+                };
+
+                await _smartListBox.UpdateData(fileData);
+                MessageBox.Show("Cesty k súborom načítané!", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Chyba: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void LoadDateDataButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var dateData = new List<object>
+                {
+                    DateTime.Now,
+                    DateTime.Today,
+                    new DateTime(2024, 1, 1),
+                    new DateTime(2024, 12, 31),
+                    DateTime.Now.AddDays(-30),
+                    DateTime.Now.AddYears(1)
+                };
+
+                await _smartListBox.UpdateData(dateData);
+                MessageBox.Show("Dátumové dáta načítané!", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Chyba: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ClearSelectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                _smartListBox.ClearSelection();
+                MessageBox.Show("Selekcia zrušená!", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Chyba: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ToggleSelectionModeButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var currentMode = _smartListBox.SelectionMode;
+                var newMode = currentMode == SelectionMode.Single ? SelectionMode.Multiple : SelectionMode.Single;
+                
+                _smartListBox.SelectionMode = newMode;
+                _smartListBox.ClearSelection(); // Clear selection when changing mode
+                
+                MessageBox.Show($"Režim selekcie zmenený na: {newMode}", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Chyba: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void GetSelectedItemsButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var selectedItems = _smartListBox.GetSelectedItems().ToList();
+                
+                if (selectedItems.Count == 0)
+                {
+                    MessageBox.Show("Žiadne položky nie sú vybrané.", "Selektnuté položky", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    var itemsText = string.Join("\n", selectedItems.Select((item, index) => $"{index + 1}. {item}"));
+                    MessageBox.Show($"Vybrané položky ({selectedItems.Count}):\n\n{itemsText}", "Selektnuté položky", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Chyba: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ShowStatsButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var totalCount = _smartListBox.TotalCount;
+                var selectedCount = _smartListBox.SelectedCount;
+                var selectionMode = _smartListBox.SelectionMode;
+                
+                var statsText = $"Celkový počet položiek: {totalCount}\n" +
+                               $"Počet vybraných: {selectedCount}\n" +
+                               $"Režim selekcie: {selectionMode}";
+                
+                MessageBox.Show(statsText, "Štatistiky SmartListBox", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Chyba: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        #endregion
+
+        #region Business Logic Examples
+
+        // Ukážka ako použiť selektnuté položky v business logike
+        private void ProcessSelectedFilesButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // GetSelectedItems() vracia originálne hodnoty (celé cesty), nie len display názvy
+                var selectedItems = _smartListBox.GetSelectedItems().ToList();
+                var filePaths = selectedItems.Where(item => 
+                {
+                    var itemStr = item?.ToString();
+                    return !string.IsNullOrEmpty(itemStr) && 
+                           (itemStr.Contains("\\") || itemStr.Contains("/")) && 
+                           Path.HasExtension(itemStr);
+                }).ToList();
+
+                if (filePaths.Count == 0)
+                {
+                    MessageBox.Show("Žiadne súbory nie sú vybrané.", "Spracovanie súborov", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var result = $"Spracovanie {filePaths.Count} súborov (originálne cesty):\n\n";
+                foreach (var filePath in filePaths)
+                {
+                    var fileName = Path.GetFileName(filePath.ToString());
+                    var fullPath = filePath.ToString();
+                    result += $"• {fileName}\n  Cesta: {fullPath}\n\n";
+                }
+
+                MessageBox.Show(result, "Spracovanie súborov", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Chyba pri spracovaní súborov: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void CalculateSelectedNumbersButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var selectedItems = _smartListBox.GetSelectedItems().ToList();
+                var numbers = selectedItems.Where(item => 
+                {
+                    return double.TryParse(item?.ToString(), out _);
+                }).Select(item => double.Parse(item.ToString())).ToList();
+
+                if (numbers.Count == 0)
+                {
+                    MessageBox.Show("Žiadne čísla nie sú vybrané.", "Kalkulácia", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var sum = numbers.Sum();
+                var average = numbers.Average();
+                var min = numbers.Min();
+                var max = numbers.Max();
+
+                var result = $"Štatistiky pre {numbers.Count} vybraných čísel:\n\n" +
+                           $"Súčet: {sum:F2}\n" +
+                           $"Priemer: {average:F2}\n" +
+                           $"Minimum: {min:F2}\n" +
+                           $"Maximum: {max:F2}";
+
+                MessageBox.Show(result, "Kalkulácia čísel", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Chyba pri kalkulácii: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        #endregion
+
+        #region Cleanup
+
+        protected override async void OnClosed(EventArgs e)
+        {
+            try
+            {
+                if (_smartListBox != null)
+                {
+                    _smartListBox.ErrorOccurred -= OnSmartListBoxError;
+                    _smartListBox.SelectionChanged -= OnSelectionChanged;
+                    
+                    // Async dispose
+                    await _smartListBox.DisposeAsync();
+                }
+
+                _loggerFactory?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Cleanup error: {ex.Message}");
+            }
+            finally
+            {
+                base.OnClosed(e);
+            }
+        }
+
+        #endregion
+    }
+}
+
+/* 
+==============================================
+SÚHRN POUŽITIA SmartListBox:
+==============================================
+
+1. INICIALIZÁCIA:
+   ✅ var listBox = new SmartListBoxControl();
+   ✅ await listBox.Initialize(data, loggerFactory, SelectionMode);
+
+2. PRÁCA S DÁTAMI:
+   ✅ await listBox.UpdateData(newData);
+   ✅ listBox.ClearSelection();
+   ✅ var selected = listBox.GetSelectedItems();
+   ✅ var selectedItem = listBox.GetSelectedItem();
+
+3. KONFIGURÁCIA:
+   ✅ listBox.SelectionMode = SelectionMode.Single/Multiple;
+   ✅ Configuration.ConfigureLogging(loggerFactory);
+   ✅ Configuration.SetDebugLogging(true);
+
+4. EVENTY:
+   ✅ listBox.ErrorOccurred += OnError;
+   ✅ listBox.SelectionChanged += OnSelectionChanged;
+
+5. PODPOROVANÉ DÁTA:
+   ✅ Text - zobrazí ako je
+   ✅ Čísla - zobrazí ako string
+   ✅ Dátumy - formátované zobrazenie
+   ✅ Cesty k súborom - zobrazí len názov súboru
+   ✅ Null/prázdne - zobrazí "(prázdne)"
+
+6. BUSINESS LOGIC:
+   ✅ Filtrovanie vybraných položiek podľa typu
+   ✅ Spracovanie súborov
+   ✅ Kalkulácie s číslami
+   ✅ Pravidlá založené na selekcii
+
+==============================================
+CLEAN ARCHITECTURE + MVVM ✅
+==============================================
+*/

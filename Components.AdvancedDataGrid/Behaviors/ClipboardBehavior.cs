@@ -1,12 +1,12 @@
 ﻿// ===========================================
-// Behaviors/ClipboardBehavior.cs
+// RpaWpfComponents/AdvancedDataGrid/Behaviors/ClipboardBehavior.cs
 // ===========================================
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Microsoft.Xaml.Behaviors;
 
-namespace Components.AdvancedDataGrid.Behaviors
+namespace RpaWpfComponents.AdvancedDataGrid.Behaviors
 {
     public class ClipboardBehavior : Behavior<DataGrid>
     {

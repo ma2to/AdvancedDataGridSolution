@@ -1,14 +1,14 @@
 ﻿// ===========================================
-// Services/Interfaces/IDataService.cs
+// RpaWpfComponents/AdvancedDataGrid/Services/Interfaces/IDataService.cs
 // ===========================================
-using Components.AdvancedDataGrid.Models;
-using Components.AdvancedDataGrid.Events;
+using RpaWpfComponents.AdvancedDataGrid.Models;
+using RpaWpfComponents.AdvancedDataGrid.Events;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Threading.Tasks;
 
-namespace Components.AdvancedDataGrid.Services.Interfaces
+namespace RpaWpfComponents.AdvancedDataGrid.Services.Interfaces
 {
     public interface IDataService
     {
@@ -22,7 +22,6 @@ namespace Components.AdvancedDataGrid.Services.Interfaces
         Task RemoveRowsByConditionAsync(string columnName, Func<object, bool> condition);
         Task RemoveEmptyRowsAsync();
 
-        // OPRAVENÉ - použije DataChangeEventArgs namiesto DataChangedEventArgs
         event EventHandler<DataChangeEventArgs> DataChanged;
         event EventHandler<ComponentErrorEventArgs> ErrorOccurred;
     }

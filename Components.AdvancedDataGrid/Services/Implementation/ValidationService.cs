@@ -1,17 +1,24 @@
-﻿// Services/Implementation/ValidationService.cs - VYLEPŠENÝ
-using Components.AdvancedDataGrid.Events;
-using Components.AdvancedDataGrid.Models;
-using Components.AdvancedDataGrid.Services.Interfaces;
+﻿// RpaWpfComponents/AdvancedDataGrid/Services/Implementation/ValidationService.cs
+using RpaWpfComponents.AdvancedDataGrid.Events;
+using RpaWpfComponents.AdvancedDataGrid.Models;
+using RpaWpfComponents.AdvancedDataGrid.Services.Interfaces;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Components.AdvancedDataGrid.Services.Implementation
+namespace RpaWpfComponents.AdvancedDataGrid.Services.Implementation
 {
     public class ValidationService : IValidationService
     {
+        private readonly ILogger<ValidationService> _logger;
         private readonly Dictionary<string, List<ValidationRuleModel>> _validationRules = new();
+
+        public ValidationService(ILogger<ValidationService>? logger = null)
+        {
+            _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ValidationService>.Instance;
+        }
 
         public event EventHandler<ValidationCompletedEventArgs>? ValidationCompleted;
         public event EventHandler<ComponentErrorEventArgs>? ValidationErrorOccurred;
@@ -26,6 +33,13 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                     {
                         ColumnName = cell.ColumnName
                     };
+
+                    if (row.IsEmpty)
+                    {
+                        cell.SetValidationErrors(new List<string>());
+                        _logger.LogTrace("Validation skipped for empty row, column: {ColumnName}", cell.ColumnName);
+                        return result;
+                    }
 
                     if (!_validationRules.ContainsKey(cell.ColumnName))
                         return result;
@@ -44,11 +58,14 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                             {
                                 errorMessages.Add(rule.ErrorMessage);
                                 result.IsValid = false;
+                                _logger.LogDebug("Validation rule '{RuleName}' failed for {ColumnName} = '{Value}'",
+                                    rule.RuleName, cell.ColumnName, cell.Value);
                             }
                         }
                         catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"Validation rule error for {rule.RuleName}: {ex.Message}");
+                            _logger.LogWarning(ex, "Validation rule '{RuleName}' threw exception for {ColumnName}",
+                                rule.RuleName, cell.ColumnName);
                             errorMessages.Add($"Validation error: {ex.Message}");
                             result.IsValid = false;
                         }
@@ -57,11 +74,18 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                     result.ErrorMessages = errorMessages;
                     cell.SetValidationErrors(errorMessages);
 
+                    if (errorMessages.Count > 0)
+                    {
+                        _logger.LogDebug("Validation failed for {ColumnName} = '{Value}': {Errors}",
+                            cell.ColumnName, cell.Value, string.Join(", ", errorMessages));
+                    }
+
                     return result;
                 });
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error validating cell {ColumnName}", cell?.ColumnName);
                 OnValidationErrorOccurred(new ComponentErrorEventArgs(ex, "ValidateCellAsync"));
                 return ValidationResultModel.Failure($"Chyba pri validácii: {ex.Message}");
             }
@@ -72,8 +96,35 @@ namespace Components.AdvancedDataGrid.Services.Implementation
             try
             {
                 var results = new List<ValidationResultModel>();
+                var validAlertsCell = row.GetCell("ValidAlerts");
 
-                // Validate each cell that has validation rules
+                if (row.IsEmpty)
+                {
+                    foreach (var cell in row.Cells.Values.Where(c => !IsSpecialColumn(c.ColumnName)))
+                    {
+                        cell.SetValidationErrors(new List<string>());
+                    }
+
+                    row.UpdateValidationStatus();
+
+                    if (validAlertsCell != null)
+                    {
+                        validAlertsCell.Value = "";
+                    }
+
+                    _logger.LogTrace("Row validation skipped for empty row");
+
+                    OnValidationCompleted(new ValidationCompletedEventArgs
+                    {
+                        Row = row,
+                        Results = results
+                    });
+
+                    return results;
+                }
+
+                _logger.LogDebug("Validating row with {CellCount} cells", row.Cells.Count);
+
                 var cellsToValidate = row.Cells.Values
                     .Where(c => !IsSpecialColumn(c.ColumnName) && _validationRules.ContainsKey(c.ColumnName))
                     .ToList();
@@ -84,15 +135,16 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                     results.Add(result);
                 }
 
-                // Update row validation status
                 row.UpdateValidationStatus();
 
-                // Update ValidAlerts column if it exists
-                var validAlertsCell = row.GetCell("ValidAlerts");
                 if (validAlertsCell != null)
                 {
                     validAlertsCell.Value = row.ValidationErrorsText;
                 }
+
+                var validCount = results.Count(r => r.IsValid);
+                var invalidCount = results.Count(r => !r.IsValid);
+                _logger.LogDebug("Row validation completed: {ValidCount} valid, {InvalidCount} invalid", validCount, invalidCount);
 
                 OnValidationCompleted(new ValidationCompletedEventArgs
                 {
@@ -104,6 +156,7 @@ namespace Components.AdvancedDataGrid.Services.Implementation
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error validating row");
                 OnValidationErrorOccurred(new ComponentErrorEventArgs(ex, "ValidateRowAsync"));
                 return new List<ValidationResultModel>();
             }
@@ -118,10 +171,12 @@ namespace Components.AdvancedDataGrid.Services.Implementation
 
                 if (dataRows.Count == 0)
                 {
+                    _logger.LogInformation("ValidateAllRows: No non-empty rows to validate");
                     return allResults;
                 }
 
-                // Process rows in batches for better performance and progress reporting
+                _logger.LogInformation("Validating {RowCount} non-empty rows", dataRows.Count);
+
                 const int batchSize = 10;
                 var totalRows = dataRows.Count;
                 var processedRows = 0;
@@ -138,7 +193,7 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                         }
                         catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"Error validating row: {ex.Message}");
+                            _logger.LogError(ex, "Error validating row in batch");
                             return new List<ValidationResultModel>();
                         }
                     });
@@ -151,15 +206,18 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                     }
 
                     processedRows += batch.Count;
-
-                    // Report progress could be added here if needed
-                    System.Diagnostics.Debug.WriteLine($"Validated {processedRows}/{totalRows} rows");
+                    _logger.LogDebug("Validated batch: {ProcessedRows}/{TotalRows} rows", processedRows, totalRows);
                 }
+
+                var validCount = allResults.Count(r => r.IsValid);
+                var invalidCount = allResults.Count(r => !r.IsValid);
+                _logger.LogInformation("ValidateAllRows completed: {ValidCount} valid, {InvalidCount} invalid results", validCount, invalidCount);
 
                 return allResults;
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error validating all rows");
                 OnValidationErrorOccurred(new ComponentErrorEventArgs(ex, "ValidateAllRowsAsync"));
                 return new List<ValidationResultModel>();
             }
@@ -180,16 +238,14 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                     _validationRules[rule.ColumnName] = new List<ValidationRuleModel>();
                 }
 
-                // Remove existing rule with same name if it exists
                 _validationRules[rule.ColumnName].RemoveAll(r => r.RuleName == rule.RuleName);
-
-                // Add new rule
                 _validationRules[rule.ColumnName].Add(rule);
 
-                System.Diagnostics.Debug.WriteLine($"Added validation rule '{rule.RuleName}' for column '{rule.ColumnName}'");
+                _logger.LogDebug("Added validation rule '{RuleName}' for column '{ColumnName}'", rule.RuleName, rule.ColumnName);
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error adding validation rule");
                 OnValidationErrorOccurred(new ComponentErrorEventArgs(ex, "AddValidationRule"));
             }
         }
@@ -201,11 +257,13 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                 if (_validationRules.ContainsKey(columnName))
                 {
                     var removedCount = _validationRules[columnName].RemoveAll(r => r.RuleName == ruleName);
-                    System.Diagnostics.Debug.WriteLine($"Removed {removedCount} validation rule(s) '{ruleName}' from column '{columnName}'");
+                    _logger.LogDebug("Removed {RemovedCount} validation rule(s) '{RuleName}' from column '{ColumnName}'",
+                        removedCount, ruleName, columnName);
                 }
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error removing validation rule '{RuleName}' from column '{ColumnName}'", ruleName, columnName);
                 OnValidationErrorOccurred(new ComponentErrorEventArgs(ex, "RemoveValidationRule"));
             }
         }
@@ -218,17 +276,18 @@ namespace Components.AdvancedDataGrid.Services.Implementation
                 {
                     var totalRules = _validationRules.Values.Sum(rules => rules.Count);
                     _validationRules.Clear();
-                    System.Diagnostics.Debug.WriteLine($"Cleared all {totalRules} validation rules");
+                    _logger.LogInformation("Cleared all {TotalRules} validation rules", totalRules);
                 }
                 else if (_validationRules.ContainsKey(columnName))
                 {
                     var ruleCount = _validationRules[columnName].Count;
                     _validationRules[columnName].Clear();
-                    System.Diagnostics.Debug.WriteLine($"Cleared {ruleCount} validation rules from column '{columnName}'");
+                    _logger.LogDebug("Cleared {RuleCount} validation rules from column '{ColumnName}'", ruleCount, columnName);
                 }
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error clearing validation rules for column: {ColumnName}", columnName ?? "ALL");
                 OnValidationErrorOccurred(new ComponentErrorEventArgs(ex, "ClearValidationRules"));
             }
         }
@@ -243,6 +302,7 @@ namespace Components.AdvancedDataGrid.Services.Implementation
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error getting validation rules for column: {ColumnName}", columnName);
                 OnValidationErrorOccurred(new ComponentErrorEventArgs(ex, "GetValidationRules"));
                 return new List<ValidationRuleModel>();
             }
